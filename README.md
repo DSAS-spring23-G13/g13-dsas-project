@@ -1,4 +1,4 @@
-# dscc202-402-spring2023
+# dscc402-spring2023
 Course Materials for Data Science at Scale
 
 ## Establishing a GitHub account if your do not have one already
