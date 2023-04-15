@@ -27,28 +27,55 @@ print(start_date,end_date,hours_to_forecast, promote_model)
 
 # COMMAND ----------
 
+import os
+# Read data from a CSV file in batch mode
+weather_df = spark.read \
+    .format("csv") \
+    .option("header", "true") \
+    .load(NYC_WEATHER_FILE_PATH)
+
+# Write the processed data to a Parquet file
+output_path = GROUP_DATA_PATH + "historic_weather"
+
+if not os.path.isdir(output_path):
+    dbutils.fs.mkdirs(output_path)
+
+weather_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .save(output_path)
+
+weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather_info")
+
+# verify the write
+display(weather_df)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC use g13_db;
+# MAGIC 
+# MAGIC select top from historic_weather_info;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## store historic data in group path
 
 # COMMAND ----------
 
-import os
-weather_df = spark.read.format("csv").load(NYC_WEATHER_FILE_PATH)
-
-destination_folder_path = GROUP_DATA_PATH + "historic_weather"
-
-if not os.path.isdir(destination_folder_path):
-    dbutils.fs.mkdirs(destination_folder_path)
-
-weather_df.write.format("delta").mode("overwrite").option('dataChange', 'False').save(destination_folder_path)
-
-weather_df.write.format("delta").mode("overwrite").saveAsTable("old_weather_info")
-
-display(weather_df)
+display(dbutils.fs.ls('dbfs:/FileStore/tables/'))
+# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(destination_folder_path))
+# MAGIC 
+# MAGIC %sql
+# MAGIC -- SHOW DATABASES;
+# MAGIC 
+# MAGIC use g13_db;
+# MAGIC -- drop table if exists weather_csv;
+# MAGIC SHOW TABLES;
 
 # COMMAND ----------
 
