@@ -109,15 +109,130 @@ df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips")
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # stream live data
+# MAGIC ##### BRONZE_NYC_WEATHER_PATH
+
+# COMMAND ----------
+
+import os
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType, LongType, ArrayType
+
+# weather schema
+# Define the schema for the DataFrame
+# w_schema = StructType([
+#     StructField("dt", LongType(), True),
+#     StructField("pressure", LongType(), True),
+#     StructField("humidity", LongType(), True),
+#     StructField("clouds", LongType(), True),
+#     StructField("visibility", LongType(), True),
+#     StructField("wind_deg", LongType(), True),
+#     StructField("wind_gust", DoubleType(), True),
+#     StructField("wind_speed", DoubleType(), True),
+#     StructField("uvi", DoubleType(), True),
+#     StructField("dew_point", DoubleType(), True),
+#     StructField("feels_like", DoubleType(), True),
+#     StructField("temp", DoubleType(), True),
+#     StructField("pop", DoubleType(), True),
+#     StructField("rain.1h", DoubleType(), True),
+#     StructField("time", DoubleType(), True),
+#     StructField("weather", ArrayType(
+#         StructType([
+#             StructField("description", StringType(), True),
+#             StructField("icon", IntegerType(), True),
+#             StructField("main", StringType(), True),
+#             StructField("id", LongType(), True),
+#         ])
+#     ), True)    
+# ])
+# create readstream
+streaming_weather_df = (
+    spark.readStream
+    .format('delta')
+    .load(BRONZE_NYC_WEATHER_PATH)
+)
+
+streaming_weather_df.isStreaming
+
+# COMMAND ----------
+
+# output folder
+output_path = GROUP_DATA_PATH + "bronze/"
+
+if not os.path.isdir(output_path):
+    dbutils.fs.mkdirs(output_path)
+    
+weather_query = (streaming_weather_df
+ .writeStream
+ .format("delta")
+ .option("checkpointLocation", output_path)
+ .option("path", output_path)
+ .outputMode("append")  # complete = all the counts should be in the table
+ .table('nyc_weather')
+#  .start(output_path)
+)
+
+# Wait for the query to terminate
+weather_query.awaitTermination()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## BRONZE_STATION_INFO_PATH
+
+# COMMAND ----------
+
+import os
+output_path = GROUP_DATA_PATH + "bronze/"
+
+if not os.path.isdir(output_path):
+    dbutils.fs.mkdirs(output_path)
+
+streaming_station_df = (
+    spark.readStream
+    .format('delta')
+    .load(BRONZE_STATION_INFO_PATH)
+)
+
+streaming_station_df.isStreaming
+
+# COMMAND ----------
+
+b_query_df = (streaming_station_df
+              .writeStream
+              .format("delta")
+              .outputMode("append")  # complete = all the counts should be in the table
+              .queryName('bike_info')
+              .trigger(processingTime='1 hour')
+              .option("checkpointLocation", output_path)
+              .option("path", output_path)
+              .table('bike_station_info')
+#              .start(output_path)
+             )
+
+# Wait for the query to terminate
+# b_query_df.awaitTermination()
+
+# COMMAND ----------
+
+# b_query_df.status
+b_query_df.stop()
+
+# COMMAND ----------
+
 # bdf=spark.read.format('csv').option("header","True").option("inferSchema","True").load(BIKE_TRIP_DATA_PATH+'202111_citibike_tripdata.csv')
 display(df)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC use g13_db;
-# MAGIC 
-# MAGIC select * from historic_bike_trips limit 10;
+# MAGIC -- show tables;
+# MAGIC select * from bike_station_info limit 10;
 
 # COMMAND ----------
 
