@@ -183,15 +183,23 @@ weather_query.awaitTermination()
 # COMMAND ----------
 
 import os
-output_path = GROUP_DATA_PATH + "bronze/"
+output_path = GROUP_DATA_PATH + "bronze/bike-info"
 
 if not os.path.isdir(output_path):
     dbutils.fs.mkdirs(output_path)
 
-streaming_station_df = (
-    spark.readStream
+station_query = (
+    spark
+    .readStream
     .format('delta')
+    .option("checkpointLocation", output_path)
     .load(BRONZE_STATION_INFO_PATH)
+#     .writeStream
+#     .option("checkpointLocation", output_path)
+#     .option("mergeSchema", "true")
+#     .option("path", output_path)
+#     .outputMode("append")
+#     .table('bike_station_info')
 )
 
 streaming_station_df.isStreaming
@@ -215,23 +223,44 @@ b_query_df = (streaming_station_df
 
 # COMMAND ----------
 
-# b_query_df.status
-b_query_df.stop()
+# MAGIC %md
+# MAGIC ### BRONZE_STATION_STATUS_PATH
 
 # COMMAND ----------
 
-# bdf=spark.read.format('csv').option("header","True").option("inferSchema","True").load(BIKE_TRIP_DATA_PATH+'202111_citibike_tripdata.csv')
-display(df)
+import os
+status_output_path = GROUP_DATA_PATH + "bronze/bike-status"
+
+if not os.path.isdir(status_output_path):
+    dbutils.fs.mkdirs(status_output_path)
+
+stat_df = (
+    spark
+    .readStream
+    .format('delta')
+    .option("checkpointLocation", status_output_path)
+    .load(BRONZE_STATION_STATUS_PATH)
+)
 
 # COMMAND ----------
 
-
+stat_query = (stat_df
+              .writeStream
+              .format("delta")
+              .outputMode("append")  # complete = all the counts should be in the table
+              .queryName('bike_status')
+              .trigger(processingTime='1 hour')
+              .option("checkpointLocation", status_output_path)
+              .option("path", status_output_path)
+              .table('station_status')
+             )
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC use g13_db;
 # MAGIC -- show tables;
+# MAGIC -- drop table if exists bike_station_info;
 # MAGIC select * from bike_station_info limit 10;
 
 # COMMAND ----------
@@ -251,8 +280,9 @@ display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
 # MAGIC -- SHOW DATABASES;
 # MAGIC 
 # MAGIC use g13_db;
-# MAGIC -- drop table if exists weather_csv;
-# MAGIC SHOW TABLES;
+# MAGIC -- drop table if exists ;
+# MAGIC -- SHOW TABLES;
+# MAGIC select * from nyc_weather limit 4;
 
 # COMMAND ----------
 
