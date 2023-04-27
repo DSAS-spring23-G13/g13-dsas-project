@@ -35,7 +35,7 @@ weather_df = spark.read \
     .load(NYC_WEATHER_FILE_PATH)
 
 # Write the processed data to a Parquet file
-output_path = GROUP_DATA_PATH + "historic_weather"
+output_path = GROUP_DATA_PATH + "/historic_weather"
 
 if not os.path.isdir(output_path):
     dbutils.fs.mkdirs(output_path)
@@ -49,6 +49,19 @@ weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather
 
 # verify the write
 display(weather_df)
+
+# COMMAND ----------
+
+weather_df.schema
+
+# COMMAND ----------
+
+#Checking for Existence of Null values in each column
+null_counts = [weather_df.where(weather_df[col].isNull()).count() for col in weather_df.columns]
+
+# Print the null counts for each column
+for i, col in enumerate(weather_df.columns):
+    print(col, null_counts[i])
 
 # COMMAND ----------
 
@@ -96,6 +109,10 @@ for file in csv_files:
 
 # COMMAND ----------
 
+df.schema
+
+# COMMAND ----------
+
 # Write the DataFrame to a Delta table
 # Write the processed data to a delta table
 output_path = GROUP_DATA_PATH + "historic_bike_trips"
@@ -128,6 +145,10 @@ display(df)
 
 display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
 # display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
+
+# COMMAND ----------
+
+output_path
 
 # COMMAND ----------
 
