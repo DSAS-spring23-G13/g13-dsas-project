@@ -22,19 +22,19 @@ print(start_date,end_date,hours_to_forecast, promote_model)
 
 # MAGIC %md
 # MAGIC ## load historic data
-# MAGIC 
+# MAGIC
 # MAGIC NYC_WEATHER_FILE_PATH
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC use g13_db;
-# MAGIC 
+# MAGIC
 # MAGIC -- select * 
 # MAGIC select DISTINCT main
 # MAGIC from historic_weather_info
 # MAGIC -- limit 10;
-# MAGIC 
+# MAGIC
 # MAGIC /*
 # MAGIC id:string ?? why this
 # MAGIC dt:string
@@ -55,13 +55,13 @@ print(start_date,end_date,hours_to_forecast, promote_model)
 # MAGIC |  Snow|
 # MAGIC | Clear|
 # MAGIC +------+
-# MAGIC 
+# MAGIC
 # MAGIC // maybess
 # MAGIC pressure:string
 # MAGIC dew_point:string
 # MAGIC uvi:string
 # MAGIC wind_deg:string
-# MAGIC 
+# MAGIC
 # MAGIC // not so important
 # MAGIC clouds:string
 # MAGIC description:string
@@ -79,31 +79,31 @@ print(start_date,end_date,hours_to_forecast, promote_model)
 # MAGIC use g13_db;
 # MAGIC -- station_id = 5788.13, 66db65aa-0aca-11e7-82f6-3863bb44ef7c
 # MAGIC -- show tables;
-# MAGIC 
+# MAGIC
 # MAGIC -- bike_station_info
-# MAGIC 
+# MAGIC
 # MAGIC -- station_id:string
 # MAGIC -- name:string
 # MAGIC -- short_name:string //no need for this
 # MAGIC -- capacity:long
-# MAGIC 
+# MAGIC
 # MAGIC -- has_kiosk:boolean //no need for this
 # MAGIC -- station_type:string //no need for this
 # MAGIC -- region_id:string
-# MAGIC 
+# MAGIC
 # MAGIC -- lat:double //no need for this
 # MAGIC -- lon:double //no need for this
 # MAGIC -- electric_bike_surcharge_waiver:boolean //no need for this
-# MAGIC 
+# MAGIC
 # MAGIC -- legacy_id:string //no need for this
-# MAGIC 
+# MAGIC
 # MAGIC -- eightd_has_key_dispenser:boolean //no need for this
 # MAGIC -- external_id:string //no need for this
 # MAGIC -- rental_methods:array -> element:string
-# MAGIC 
+# MAGIC
 # MAGIC -- rental_uris.ios:string //no need for this
 # MAGIC -- rental_uris.android:string //no need for this
-# MAGIC 
+# MAGIC
 # MAGIC SELECT DISTINCT station_type from bike_station_info 
 # MAGIC -- where station_id like '66db65aa-0aca-11e7-82f6-3863bb44ef7c' 
 # MAGIC -- limit 5;
@@ -127,21 +127,23 @@ df.select('main').distinct().show()
 # MAGIC -- show tables;
 # MAGIC -- SELECT num_scooters_available, num_ebikes_available, num_bikes_available, num_docks_available, num_scooters_unavailable
 # MAGIC SELECT *
+# MAGIC -- from bike_station_info
 # MAGIC from station_status
-# MAGIC -- where  station_id = '66db65aa-0aca-11e7-82f6-3863bb44ef7c'
-# MAGIC limit 5;
-# MAGIC 
+# MAGIC -- where  name = 'Lafayette St & E 8 St'
+# MAGIC where station_id = '66db65aa-0aca-11e7-82f6-3863bb44ef7c' and is_returning = 0
+# MAGIC -- limit 5;
+# MAGIC
 # MAGIC -- num_ebikes_available:long
 # MAGIC -- num_docks_available:long
 # MAGIC -- num_scooters_available:double
 # MAGIC -- num_bikes_available:long
-# MAGIC 
+# MAGIC
 # MAGIC -- num_scooters_unavailable:double
 # MAGIC -- num_docks_disabled:long
 # MAGIC -- num_bikes_disabled:long
-# MAGIC 
+# MAGIC
 # MAGIC -- station_id:string
-# MAGIC 
+# MAGIC
 # MAGIC -- //no need for this
 # MAGIC -- is_installed:long
 # MAGIC -- legacy_id:string //no need for this
@@ -150,7 +152,7 @@ df.select('main').distinct().show()
 # MAGIC -- is_returning:long //no need for this
 # MAGIC -- eightd_has_available_keys:boolean //is it needed??
 # MAGIC -- station_status:string
-# MAGIC 
+# MAGIC
 # MAGIC -- drop below as it is null anyway
 # MAGIC -- valet.region:string
 # MAGIC -- valet.off_dock_capacity:double
@@ -159,7 +161,7 @@ df.select('main').distinct().show()
 # MAGIC -- valet.off_dock_count:double
 # MAGIC -- valet.station_id:string
 # MAGIC -- valet.valet_revision:double
-# MAGIC 
+# MAGIC
 # MAGIC -- SELECT * from bike_station_info WHERE name = 'Lafayette St & E 8 St' LIMIT 10;
 # MAGIC -- select * from historic_bike_trips WHERE contains(end_station_id, 190);
 # MAGIC -- 1,965 rows for id
@@ -248,7 +250,7 @@ display(weather_df)
 
 # MAGIC %md
 # MAGIC ## load historic data
-# MAGIC 
+# MAGIC
 # MAGIC BIKE_TRIP_DATA_PATH
 
 # COMMAND ----------
