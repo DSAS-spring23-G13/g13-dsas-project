@@ -172,10 +172,6 @@ holiday_set = set(holidays)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # Create a user-defined function (UDF) to check if a date is a holiday
 from pyspark.sql.functions import udf
 from pyspark.sql.types import BooleanType
@@ -323,11 +319,8 @@ plt.show()
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
+# MAGIC %md
+# MAGIC ## Additional EDA
 
 # COMMAND ----------
 
@@ -335,27 +328,461 @@ plt.show()
 
 # COMMAND ----------
 
+display(dbutils.fs.ls("dbfs:/FileStore/tables/G13/bronze"))
+
+# COMMAND ----------
+
+bike_station = f"dbfs:/FileStore/tables/G13/bronze/bike-station-info/"
+
+# COMMAND ----------
+
+bike_station_df = spark.read.format('delta').load(bike_station)
+display(bike_station_df)
+
+# COMMAND ----------
+
+bike_station_df.head(1)
+
+# COMMAND ----------
+
+bike_status = f"dbfs:/FileStore/tables/G13/bronze/bike-status/"
+
+bike_status_df = spark.read.format('delta').load(bike_status)
+display(bike_status_df)
+
+# COMMAND ----------
+
+bike_status_df.head(1)
+
+# COMMAND ----------
+
+# First, join the bike_trip_df with bike_station_df on start_station and station_id columns:
+from pyspark.sql.functions import col
+
+# bike_trip_with_station_info = daily_trips.join(bike_station_df, col("start_station") == col("station_id"), "left")
+
+# COMMAND ----------
+
+display(daily_trips_weather)
+
+# COMMAND ----------
+
+display(daily_trips)
+
+# COMMAND ----------
+
+historic_bike_trips_df.head(1)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Additional EDA Start
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC What is the distribution of station capacities in the city? Are there any clusters or patterns?
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+
+# Extract station capacities from the dataframe
+station_capacities = bike_station_df.select('capacity').rdd.flatMap(lambda x: x).collect()
+
+# Create a histogram of station capacities
+plt.hist(station_capacities, bins=20)
+plt.xlabel('Station Capacity')
+plt.ylabel('Number of Stations')
+plt.title('Distribution of Station Capacities')
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Based on these results, we can see that there is a wide range of station capacities in the system, with the minimum capacity being 0, the maximum capacity being 123, and the average capacity being approximately 31.60. This information can be helpful in understanding the distribution of bikes across different stations and the potential demand for bikes at each station.
+
+# COMMAND ----------
+
+from pyspark.sql.functions import min, max, mean
+
+capacity_stats = bike_station_df.select(
+    min("capacity").alias("min_capacity"),
+    max("capacity").alias("max_capacity"),
+    mean("capacity").alias("avg_capacity"),
+).collect()[0]
+
+min_capacity = capacity_stats.min_capacity
+max_capacity = capacity_stats.max_capacity
+avg_capacity = capacity_stats.avg_capacity
+
+print(f"Minimum station capacity: {min_capacity}")
+print(f"Maximum station capacity: {max_capacity}")
+print(f"Average station capacity: {avg_capacity:.2f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC What is the distribution of the number of bikes available at stations?
+
+# COMMAND ----------
+
+from pyspark.sql.functions import count
+
+num_bikes_stats = bike_status_df.groupBy("num_bikes_available").agg(count("*").alias("count")).orderBy("num_bikes_available")
+
+# To output the result as a list of dictionaries
+num_bikes_list = [row.asDict() for row in num_bikes_stats.collect()]
+
+# print(num_bikes_list)
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Convert num_bikes_list to a DataFrame
+num_bikes_df = pd.DataFrame(num_bikes_list)
+
+sns.set(style="whitegrid")
+plt.figure(figsize=(16, 6))
+sns.barplot(x="num_bikes_available", y="count", data=num_bikes_df)
+plt.title("Number of Bikes Available at Stations")
+plt.xlabel("Number of Bikes Available")
+plt.ylabel("Number of Stations")
+plt.xticks(rotation=90)
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC What is the distribution of station status (active, inactive, etc.)?
+
+# COMMAND ----------
+
+station_status_stats = bike_status_df.groupBy("station_status").agg(count("*").alias("count")).orderBy("station_status")
+
+# To output the result as a list of dictionaries
+station_status_list = [row.asDict() for row in station_status_stats.collect()]
+
+print(station_status_list)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Based on the output, we can observe that the majority of the stations are in an 'active' status (2,219,232), while a smaller number of stations are 'out_of_service' (40,854). This information is useful as it provides an understanding of the proportion of stations that are currently operational and can be used for forecasting net bike change.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC How do bike trips vary across different types of bikes (electric bikes, regular bikes, etc.)?
+
+# COMMAND ----------
+
+bike_type_stats = historic_bike_trips_df.groupBy("rideable_type").agg(count("*").alias("count")).orderBy("rideable_type")
+
+# To output the result as a list of dictionaries
+bike_type_list = [row.asDict() for row in bike_type_stats.collect()]
+
+print(bike_type_list)
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Convert bike_type_list to a DataFrame
+bike_type_df = pd.DataFrame(bike_type_list)
+
+sns.set(style="whitegrid")
+plt.figure(figsize=(8, 6))
+sns.barplot(x="rideable_type", y="count", data=bike_type_df)
+plt.title("Bike Type Distribution")
+plt.xlabel("Bike Type")
+plt.ylabel("Number of Trips")
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC The output shows the distribution of bike trips across different types of bikes:
+# MAGIC
+# MAGIC Classic Bike: 29,585,988 trips  
+# MAGIC Docked Bike: 306,185 trips  
+# MAGIC Electric Bike: 10,506,882 trips   
+# MAGIC
+# MAGIC Classic bikes are the most frequently used, with a significantly higher number of trips compared to the other types. Electric bikes are the second most popular, while docked bikes have the least number of trips.
+# MAGIC
+# MAGIC Understanding the distribution of bike trips across different types of bikes can help us determine the influence of bike types on net bike change at the station level
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC How do bike trips vary across different user types (members and casual users)?
+
+# COMMAND ----------
+
+user_type_stats = historic_bike_trips_df.groupBy("member_casual").agg(count("*").alias("count")).orderBy("member_casual")
+
+# To output the result as a list of dictionaries
+user_type_list = [row.asDict() for row in user_type_stats.collect()]
+
+print(user_type_list)
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Convert user_type_list to a DataFrame
+user_type_df = pd.DataFrame(user_type_list)
+
+sns.set(style="whitegrid")
+plt.figure(figsize=(8, 6))
+sns.barplot(x="member_casual", y="count", data=user_type_df)
+plt.title("User Type Distribution")
+plt.xlabel("User Type")
+plt.ylabel("Number of Trips")
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC The output shows the distribution of bike trips across different user types:
+# MAGIC  
+# MAGIC Casual users: 8,262,716 trips  
+# MAGIC Members: 32,136,339 trips  
+# MAGIC Members account for a significantly larger number of trips compared to casual users.  
+# MAGIC
+# MAGIC Understanding the distribution of bike trips across different user types can help us determine the influence of user types on net bike change at the station level.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC What are the peak hours for bike usage, and how does this differ between weekdays and weekends?
+
+# COMMAND ----------
+
+from pyspark.sql.functions import hour, date_format
+
+# Extract hour and day of week from the started_at column
+historic_bike_trips_df = historic_bike_trips_df.withColumn("hour", hour("started_at"))
+historic_bike_trips_df = historic_bike_trips_df.withColumn("day_of_week", date_format("started_at", "E"))
+
+# Group by hour and day of the week, and count the number of trips
+hour_day_stats = historic_bike_trips_df.groupBy("hour", "day_of_week").agg(count("*").alias("count")).orderBy("hour", "day_of_week")
+
+# Collect the results as a list of dictionaries
+hour_day_list = [row.asDict() for row in hour_day_stats.collect()]
+
+
+# COMMAND ----------
+
+# Convert hour_day_list to a DataFrame
+hour_day_df = pd.DataFrame(hour_day_list)
+
+# Create a heatmap to visualize bike usage by hour and day of the week
+plt.figure(figsize=(20, 14))
+sns.heatmap(hour_day_df.pivot("day_of_week", "hour", "count"), cmap="YlGnBu", annot=True, fmt="d")
+plt.title("Bike Usage by Hour and Day of the Week")
+plt.xlabel("Hour")
+plt.ylabel("Day of the Week")
+plt.show()
+
+# COMMAND ----------
+
+# Separate weekdays and weekends into different columns
+hour_day_df["weekday_count"] = hour_day_df.apply(lambda row: row["count"] if row["day_of_week"] not in ["Sat", "Sun"] else 0, axis=1)
+hour_day_df["weekend_count"] = hour_day_df.apply(lambda row: row["count"] if row["day_of_week"] in ["Sat", "Sun"] else 0, axis=1)
+
+# Group by hour and sum the counts
+hour_day_grouped = hour_day_df.groupby("hour").agg({"weekday_count": "sum", "weekend_count": "sum"}).reset_index()
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 5))
+plt.plot(hour_day_grouped["hour"], hour_day_grouped["weekday_count"], label="Weekdays", marker="o")
+plt.plot(hour_day_grouped["hour"], hour_day_grouped["weekend_count"], label="Weekends", marker="o")
+plt.title("Bike Usage by Hour (Weekdays vs Weekends)")
+plt.xlabel("Hour")
+plt.ylabel("Number of Trips")
+plt.xticks(range(0, 24))
+plt.legend()
+plt.grid()
+plt.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Are there any correlations between weather conditions and bike availability at different stations?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Merge the nyc_weather_df with the bike_status_df based on timestamps. Since nyc_weather_df has a column named dt representing timestamps, we will use it to join the dataframes. You may need to round or truncate timestamps to the nearest hour or day, depending on the granularity of your weather data.
+
+# COMMAND ----------
+
+# from pyspark.sql.functions import from_unixtime, date_trunc
+
+# # Convert the 'dt' column to a timestamp and round it to the nearest hour
+# nyc_weather_df = nyc_weather_df.withColumn("timestamp", date_trunc("hour", from_unixtime("dt")))
+
+# # Merge bike_status_df with nyc_weather_df based on timestamps
+# merged_df = bike_status_df.join(nyc_weather_df, bike_status_df["timestamp"] == nyc_weather_df["timestamp"], "inner")
+
+# COMMAND ----------
+
+from pyspark.sql.functions import from_unixtime, date_trunc
+from pyspark.sql.types import TimestampType
+
+# Convert the 'last_reported' column to a timestamp and round it to the nearest hour
+bike_status_df = bike_status_df.withColumn("rounded_last_reported", date_trunc("hour", from_unixtime("last_reported").cast(TimestampType())))
+
+# Merge bike_status_df with nyc_weather_df based on rounded_last_reported and timestamp columns
+merged_df = bike_status_df.join(nyc_weather_df, bike_status_df["rounded_last_reported"] == nyc_weather_df["timestamp"], "inner")
+
+# COMMAND ----------
+
+# Calculate the average number of available bikes for each unique weather condition.
+from pyspark.sql.functions import avg
+
+weather_bike_availability = merged_df.groupBy("temp", "clouds", "humidity", "wind_speed")\
+                                    .agg(avg("num_bikes_available").alias("avg_num_bikes_available"))
+
+# COMMAND ----------
+
+# Compute the correlation between weather features (temperature, clouds, humidity, and wind speed) and bike availability using the Pearson correlation coefficient.
+from pyspark.ml.stat import Correlation
+from pyspark.ml.feature import VectorAssembler
+
+# Assemble the weather features into a single column
+assembler = VectorAssembler(inputCols=["temp", "clouds", "humidity", "wind_speed"], outputCol="features")
+weather_bike_availability_vec = assembler.transform(weather_bike_availability)
+
+# Compute the correlation matrix
+correlation_matrix = Correlation.corr(weather_bike_availability_vec, "features").collect()[0][0]
+
+# COMMAND ----------
+
+# Convert the correlation matrix to a dictionary
+correlation_dict = {}
+columns = ["temp", "clouds", "humidity", "wind_speed"]
+
+for i in range(len(columns)):
+    for j in range(i + 1, len(columns)):
+        key = f"{columns[i]}_{columns[j]}"
+        value = correlation_matrix[i, j]
+        correlation_dict[key] = value
+
+# Print the correlation dictionary
+print(correlation_dict)
+
+# COMMAND ----------
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Convert the correlation matrix to a NumPy array
+correlation_array = np.array(correlation_matrix.toArray())
+
+# Create a heatmap using matplotlib
+fig, ax = plt.subplots()
+cax = ax.matshow(correlation_array, cmap='coolwarm', vmin=-1, vmax=1)
+fig.colorbar(cax)
+
+# Set the axis labels
+ax.set_xticks(range(len(columns)))
+ax.set_yticks(range(len(columns)))
+ax.set_xticklabels(columns)
+ax.set_yticklabels(columns)
+
+# Rotate the x-axis labels
+plt.xticks(rotation=45)
+
+# Add title
+plt.title("Correlation Matrix Heatmap")
+
+# Display the heatmap
+plt.show()
+
+# COMMAND ----------
+
+# from pyspark.sql.functions import col
+# merged_df = merged_df.withColumn("bike_availability_ratio", col("num_bikes_available") / (col("num_bikes_available") + col("num_docks_available")))
+
+from pyspark.sql.functions import col
+
+# Filter out rows with both num_bikes_available and num_docks_available equal to zero
+filtered_df = merged_df.filter((col("num_bikes_available") > 0) | (col("num_docks_available") > 0))
+
+# Calculate the bike_availability_ratio
+merged_df = filtered_df.withColumn("bike_availability_ratio", col("num_bikes_available") / (col("num_bikes_available") + col("num_docks_available")))
+
+# COMMAND ----------
+
+merged_df.head(1)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import avg
+weather_availability_df = merged_df.groupBy("temp", "clouds", "humidity", "wind_speed").agg(avg("bike_availability_ratio").alias("average_availability_ratio"))
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+
+temp_ratio_data = weather_availability_df.select("temp", "average_availability_ratio").collect()
+temp = [row["temp"] for row in temp_ratio_data]
+availability_ratio = [row["average_availability_ratio"] for row in temp_ratio_data]
+
+plt.scatter(temp, availability_ratio)
+plt.xlabel("Temperature")
+plt.ylabel("Average Bike Availability Ratio")
+plt.title("Temperature vs. Bike Availability Ratio")
+plt.show()
+
+# COMMAND ----------
+
+print("Clouds:", clouds[:10])
+print("Humidity:", humidity[:10])
+print("Wind Speed:", wind_speed[:10])
+print("Average Bike Availability Ratio:", availability_ratio[:10])
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+
+# Remove None values from availability_ratio
+availability_ratio = [value for value in availability_ratio if value is not None]
+
+# Create subplots
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+# Clouds vs. Bike Availability
+axes[0].scatter(clouds, availability_ratio, alpha=0.5)
+axes[0].set_title('Clouds vs. Bike Availability Ratio')
+axes[0].set_xlabel('Clouds')
+axes[0].set_ylabel('Bike Availability Ratio')
+
+# Humidity vs. Bike Availability
+axes[1].scatter(humidity, availability_ratio, alpha=0.5)
+axes[1].set_title('Humidity vs. Bike Availability Ratio')
+axes[1].set_xlabel('Humidity')
+axes[1].set_ylabel('Bike Availability Ratio')
+
+# Wind Speed vs. Bike Availability
+axes[2].scatter(wind_speed, availability_ratio, alpha=0.5)
+axes[2].set_title('Wind Speed vs. Bike Availability Ratio')
+axes[2].set_xlabel('Wind Speed')
+axes[2].set_ylabel('Bike Availability Ratio')
+
+# Show the plots
+plt.show()
 
 
 # COMMAND ----------
 
 
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-import json
-
-# Return Success
-dbutils.notebook.exit(json.dumps({"exit_code": "OK"}))
