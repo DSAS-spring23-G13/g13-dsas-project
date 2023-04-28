@@ -22,7 +22,9 @@ historic_bike_trips_df.columns
 from pyspark.sql import functions as F
 
 # Extract the year and month from the 'started_at' column
-lafayette_df = historic_bike_trips_df.withColumn("year", F.year("started_at")).withColumn("month", F.month("started_at"))
+# lafayette_df = historic_bike_trips_df.withColumn("year", F.year("started_at")).withColumn("month", F.month("started_at"))
+# Extract the year and month from the 'started_at' column
+lafayette_df = historic_bike_trips_df.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT).withColumn("year", F.year("started_at")).withColumn("month", F.month("started_at"))
 
 # Group by year and month, and count the trips
 monthly_trips = lafayette_df.groupBy("year", "month").agg(
@@ -34,6 +36,10 @@ monthly_trips = monthly_trips.orderBy("year", "month")
 
 # Display the result
 monthly_trips.show()
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -170,7 +176,7 @@ holiday_set = set(holidays)
 
 # COMMAND ----------
 
-# Create a user-defined function (UDF) to check if a date is a holiday:
+# Create a user-defined function (UDF) to check if a date is a holiday
 from pyspark.sql.functions import udf
 from pyspark.sql.types import BooleanType
 
@@ -180,12 +186,12 @@ def is_holiday(date):
 
 # COMMAND ----------
 
-# Add a new column to the daily_trips DataFrame to indicate if the date is a holiday or not:
+# Add a new column to the daily_trips DataFrame to indicate if the date is a holiday or not
 daily_trips = daily_trips.withColumn("is_holiday", is_holiday("date"))
 
 # COMMAND ----------
 
-# Calculate the average trip counts for holidays and non-holidays:
+# Calculate the average trip counts for holidays and non-holidays
 avg_trips = daily_trips.groupBy("is_holiday").agg(
     F.avg("trip_count").alias("average_trip_count")
 )
@@ -221,7 +227,7 @@ plt.show()
 
 # COMMAND ----------
 
-# Read the weather data:
+# Read the weather data
 nyc_weather_df = spark.read.csv(
     "dbfs:/FileStore/tables/raw/weather/NYC_Weather_Data.csv",
     header=True,
@@ -234,18 +240,14 @@ nyc_weather_df.head(5)
 
 # COMMAND ----------
 
-# Convert the timestamp in the weather data to the appropriate granularity (daily or hourly). For this example, we'll use daily granularity:
-from pyspark.sql.functions import from_unixtime
+# Convert the timestamp in the weather data to the appropriate granularity (daily or hourly). For this we'll use daily granularity
+from pyspark.sql.functions import to_date, from_unixtime
 
 # Convert the 'dt' column from Unix timestamp to a date type column
 nyc_weather_df = nyc_weather_df.withColumn("date", to_date(from_unixtime("dt")))
 
 # Show the content and schema of the nyc_weather_df DataFrame
 nyc_weather_df.head(2)
-
-# COMMAND ----------
-
-# nyc_weather_df
 
 # COMMAND ----------
 
@@ -312,37 +314,12 @@ plt.show()
 
 # MAGIC %md
 # MAGIC Based on the correlation values, we can make the following observations:
-# MAGIC 
+# MAGIC
 # MAGIC There's a strong positive correlation between the trip count and average temperature (0.76). This suggests that as the temperature increases, the number of trips taken also tends to increase. People may be more likely to use the bike-sharing system when the weather is warmer.
-# MAGIC 
+# MAGIC
 # MAGIC There's a weak negative correlation between the trip count and average precipitation (-0.21). This indicates that as precipitation increases, the number of trips taken may decrease slightly. Rain or snow could make it less desirable for people to use bikes.
-# MAGIC 
+# MAGIC
 # MAGIC There's a weak negative correlation between the trip count and average wind speed (-0.14). This suggests that as the wind speed increases, the number of trips taken may decrease a little. High winds might make biking less enjoyable or more difficult.
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-display(dbutils.fs.ls("dbfs:/FileStore/tables/G13/historic_bike_trips"))
-
-# COMMAND ----------
-
-dbutils.widgets.removeAll()
-
-dbutils.widgets.text('01.start_date', "2021-10-01")
-dbutils.widgets.text('02.end_date', "2021-03-01")
-dbutils.widgets.text('03.hours_to_forecast', '4')
-dbutils.widgets.text('04.promote_model', 'No')
-
-start_date = str(dbutils.widgets.get('01.start_date'))
-end_date = str(dbutils.widgets.get('02.end_date'))
-hours_to_forecast = int(dbutils.widgets.get('03.hours_to_forecast'))
-promote_model = bool(True if str(dbutils.widgets.get('04.promote_model')).lower() == 'yes' else False)
-
-print(start_date,end_date,hours_to_forecast, promote_model)
-print("YOUR CODE HERE...")
 
 # COMMAND ----------
 
