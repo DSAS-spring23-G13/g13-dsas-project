@@ -126,7 +126,7 @@ display(df)
 
 # COMMAND ----------
 
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
+display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 # display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
 # COMMAND ----------
