@@ -72,7 +72,7 @@ display(trip_info)
 # COMMAND ----------
 
 weather_info= spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
-display(weather_info)
+display(weather_info)   
 
 # COMMAND ----------
 
@@ -196,7 +196,38 @@ plt.show()
 
 # COMMAND ----------
 
+### Creating function to take into account weekends
+from datetime import datetime, timedelta
+
+# Function to generate weekend dates
+def generate_weekend_dates(start_date, end_date):
+    weekends = []
+    start_date = datetime.strptime(start_date, '%Y-%m-%d')
+    end_date = datetime.strptime(end_date, '%Y-%m-%d')
+    
+    while start_date <= end_date:
+        if start_date.weekday() >= 5:  # Saturday and Sunday have weekdays 5 and 6
+            weekends.append(str(start_date.date()))
+        start_date += timedelta(days=1)
+    
+    return weekends
+
+# Generate weekend dates for the dataset's date range
+weekends = generate_weekend_dates("2021-01-01", "2023-03-31")
+
+# COMMAND ----------
+
 ## Check the effect of holidays on bike trips
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from pyspark.sql.functions import *
+
+trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
+station_trips = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
+
+# Aggregate the trips by day of the week
+daily_trips = station_trips.groupBy("date").agg(count("*").alias("trip_count")).orderBy("date") 
 holidays = [
     "2021-01-01",  # New Year's Day
     "2021-01-18",  # Martin Luther King Jr. Day
@@ -249,12 +280,29 @@ daily_trips = daily_trips.withColumn("is_holiday", is_holiday("date"))
 
 
 # Calculate the average trip counts for holidays and non-holidays
-avg_trips = daily_trips.groupBy("is_holiday").agg(
-    F.avg("trip_count").alias("average_trip_count")
+avg_trips = daily_trips.groupBy("is_holiday").agg(avg("trip_count").alias("average_trip_count")
 )
 
 avg_trips.show()
 
+avg_trips_pd = avg_trips.toPandas()
+
+# Set the plot size
+plt.figure(figsize=(10, 6))
+
+# Create a bar plot
+plt.bar(avg_trips_pd['is_holiday'], avg_trips_pd['average_trip_count'], color=['blue', 'green'])
+
+# Set the plot title, x-label, and y-label
+plt.title("Average Daily Trips by Holiday Status")
+plt.xlabel("Is Holiday?")
+plt.ylabel("Average Trip Count")
+
+# Customize the x-axis tick labels
+plt.xticks([0, 1], ['Non-Holiday', 'Holiday'])
+
+# Display the plot
+plt.show()
 
 # COMMAND ----------
 
