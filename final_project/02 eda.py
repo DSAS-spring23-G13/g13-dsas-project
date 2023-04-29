@@ -615,174 +615,219 @@ plt.show()
 
 # COMMAND ----------
 
+# This code will print the most frequent start and end stations for trips that are to or from the given station.
+from pyspark.sql.functions import desc
+
+GROUP_STATION_ASSIGNMENT = "Franklin Ave & St Marks Ave"  # Replace with your assigned station
+
+# Filter trips starting at the given station
+start_station_df = historic_bike_trips_df.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT)
+
+# Group by end_station_name and count the number of trips
+start_station_grouped = start_station_df.groupBy("end_station_name").agg(F.count("ride_id").alias("trip_count"))
+
+# Sort in descending order based on trip_count and take the first row
+most_frequent_end_station = start_station_grouped.sort(desc("trip_count")).first()
+
+# Filter trips ending at the given station
+end_station_df = historic_bike_trips_df.filter(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT)
+
+# Group by start_station_name and count the number of trips
+end_station_grouped = end_station_df.groupBy("start_station_name").agg(F.count("ride_id").alias("trip_count"))
+
+# Sort in descending order based on trip_count and take the first row
+most_frequent_start_station = end_station_grouped.sort(desc("trip_count")).first()
+
+print(f"Most frequent start station: {most_frequent_start_station['start_station_name']} with {most_frequent_start_station['trip_count']} trips")
+print(f"Most frequent end station: {most_frequent_end_station['end_station_name']} with {most_frequent_end_station['trip_count']} trips")
+
+# COMMAND ----------
+
+# bar chart showing the trip count for the top N stations
+import matplotlib.pyplot as plt
+
+# Number of top stations to display
+top_n = 10
+
+# Get the top N start stations
+top_start_stations = end_station_grouped.sort(desc("trip_count")).take(top_n)
+
+# Get the top N end stations
+top_end_stations = start_station_grouped.sort(desc("trip_count")).take(top_n)
+
+# Extract the station names and trip counts for start stations
+start_station_names = [row['start_station_name'] for row in top_start_stations]
+start_station_trip_counts = [row['trip_count'] for row in top_start_stations]
+
+# Extract the station names and trip counts for end stations
+end_station_names = [row['end_station_name'] for row in top_end_stations]
+end_station_trip_counts = [row['trip_count'] for row in top_end_stations]
+
+# Create a bar chart for the top N start stations
+plt.figure(figsize=(12, 6))
+plt.bar(start_station_names, start_station_trip_counts)
+plt.xlabel('Start Stations')
+plt.ylabel('Trip Count')
+plt.title(f'Top {top_n} Start Stations for Trips from {GROUP_STATION_ASSIGNMENT}')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# Create a bar chart for the top N end stations
+plt.figure(figsize=(12, 6))
+plt.bar(end_station_names, end_station_trip_counts)
+plt.xlabel('End Stations')
+plt.ylabel('Trip Count')
+plt.title(f'Top {top_n} End Stations for Trips to {GROUP_STATION_ASSIGNMENT}')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC Are there any correlations between weather conditions and bike availability at different stations?
+# MAGIC Knowing the most frequent start and end stations for trips involving your assigned station can help in making informed decisions related to bike-sharing operations, marketing strategies, and infrastructure planning. Here are some possible actions you can take based on this information:
+# MAGIC
+# MAGIC Optimize bike availability: Ensure that there are enough bikes available at the most frequent start station (Lefferts Pl & Franklin Ave) and enough empty docks at the most frequent end station (Eastern Pkwy & Franklin Ave) during peak hours. This can be done by redistributing bikes or adjusting the dock capacities.
+# MAGIC
+# MAGIC Infrastructure improvements: If the demand for bikes at these popular stations is consistently high, consider expanding the existing stations or adding new stations nearby to cater to the demand and reduce congestion.
+# MAGIC
+# MAGIC Targeted marketing: Promote membership plans or special offers to users who frequently start or end their trips at these popular stations. This can help in attracting new customers and retaining existing ones.
+# MAGIC
+# MAGIC Collaborate with local businesses: Partner with businesses near the most frequent start and end stations to offer promotions, discounts, or events that encourage more people to use the bike-sharing service.
+# MAGIC
+# MAGIC Analyze trip patterns: Further analyze the trip data to identify trends or patterns related to these popular stations, such as the time of day when they are most frequently used or if there are any seasonal variations. This information can be used to fine-tune operations, marketing strategies, and customer service.
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC Merge the nyc_weather_df with the bike_status_df based on timestamps. Since nyc_weather_df has a column named dt representing timestamps, we will use it to join the dataframes. You may need to round or truncate timestamps to the nearest hour or day, depending on the granularity of your weather data.
+from pyspark.sql.functions import hour, month
+
+# Filter the data to include only trips starting or ending at the most frequent stations
+frequent_stations_df = historic_bike_trips_df.filter(
+    (historic_bike_trips_df.start_station_name == "Lefferts Pl & Franklin Ave") |
+    (historic_bike_trips_df.end_station_name == "Eastern Pkwy & Franklin Ave")
+)
+
+# Extract the hour and month from the 'started_at' column
+frequent_stations_df = frequent_stations_df.withColumn("hour", hour("started_at")).withColumn("month", month("started_at"))
+
+# Group by hour and month, and count the trips
+hourly_monthly_trips = frequent_stations_df.groupBy("hour", "month").agg(
+    F.count("ride_id").alias("trip_count")
+)
+
+# Order the result by hour and month
+hourly_monthly_trips = hourly_monthly_trips.orderBy("hour", "month")
+
+# Display the result
+hourly_monthly_trips.show()
 
 # COMMAND ----------
 
-# from pyspark.sql.functions import from_unixtime, date_trunc
-
-# # Convert the 'dt' column to a timestamp and round it to the nearest hour
-# nyc_weather_df = nyc_weather_df.withColumn("timestamp", date_trunc("hour", from_unixtime("dt")))
-
-# # Merge bike_status_df with nyc_weather_df based on timestamps
-# merged_df = bike_status_df.join(nyc_weather_df, bike_status_df["timestamp"] == nyc_weather_df["timestamp"], "inner")
-
-# COMMAND ----------
-
-from pyspark.sql.functions import from_unixtime, date_trunc
-from pyspark.sql.types import TimestampType
-
-# Convert the 'last_reported' column to a timestamp and round it to the nearest hour
-bike_status_df = bike_status_df.withColumn("rounded_last_reported", date_trunc("hour", from_unixtime("last_reported").cast(TimestampType())))
-
-# Merge bike_status_df with nyc_weather_df based on rounded_last_reported and timestamp columns
-merged_df = bike_status_df.join(nyc_weather_df, bike_status_df["rounded_last_reported"] == nyc_weather_df["timestamp"], "inner")
-
-# COMMAND ----------
-
-# Calculate the average number of available bikes for each unique weather condition.
-from pyspark.sql.functions import avg
-
-weather_bike_availability = merged_df.groupBy("temp", "clouds", "humidity", "wind_speed")\
-                                    .agg(avg("num_bikes_available").alias("avg_num_bikes_available"))
-
-# COMMAND ----------
-
-# Compute the correlation between weather features (temperature, clouds, humidity, and wind speed) and bike availability using the Pearson correlation coefficient.
-from pyspark.ml.stat import Correlation
-from pyspark.ml.feature import VectorAssembler
-
-# Assemble the weather features into a single column
-assembler = VectorAssembler(inputCols=["temp", "clouds", "humidity", "wind_speed"], outputCol="features")
-weather_bike_availability_vec = assembler.transform(weather_bike_availability)
-
-# Compute the correlation matrix
-correlation_matrix = Correlation.corr(weather_bike_availability_vec, "features").collect()[0][0]
-
-# COMMAND ----------
-
-# Convert the correlation matrix to a dictionary
-correlation_dict = {}
-columns = ["temp", "clouds", "humidity", "wind_speed"]
-
-for i in range(len(columns)):
-    for j in range(i + 1, len(columns)):
-        key = f"{columns[i]}_{columns[j]}"
-        value = correlation_matrix[i, j]
-        correlation_dict[key] = value
-
-# Print the correlation dictionary
-print(correlation_dict)
-
-# COMMAND ----------
-
-import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
+import pandas as pd
 
-# Convert the correlation matrix to a NumPy array
-correlation_array = np.array(correlation_matrix.toArray())
+# Convert the hourly_monthly_trips DataFrame to a Pandas DataFrame
+hourly_monthly_trips_pd = hourly_monthly_trips.toPandas()
 
-# Create a heatmap using matplotlib
-fig, ax = plt.subplots()
-cax = ax.matshow(correlation_array, cmap='coolwarm', vmin=-1, vmax=1)
-fig.colorbar(cax)
+# Pivot the data to create a matrix with hours as rows, months as columns, and trip_count as values
+heatmap_data = hourly_monthly_trips_pd.pivot("hour", "month", "trip_count")
 
-# Set the axis labels
-ax.set_xticks(range(len(columns)))
-ax.set_yticks(range(len(columns)))
-ax.set_xticklabels(columns)
-ax.set_yticklabels(columns)
-
-# Rotate the x-axis labels
-plt.xticks(rotation=45)
-
-# Add title
-plt.title("Correlation Matrix Heatmap")
-
-# Display the heatmap
+# Create the heatmap
+plt.figure(figsize=(12, 6))
+sns.heatmap(heatmap_data, annot=True, fmt=".0f", cmap="YlGnBu", cbar_kws={'label': 'Trip Count'})
+plt.title("Hourly-Monthly Trips for Most Frequent Start and End Stations")
+plt.xlabel("Month")
+plt.ylabel("Hour")
 plt.show()
 
 # COMMAND ----------
 
-# from pyspark.sql.functions import col
-# merged_df = merged_df.withColumn("bike_availability_ratio", col("num_bikes_available") / (col("num_bikes_available") + col("num_docks_available")))
-
-from pyspark.sql.functions import col
-
-# Filter out rows with both num_bikes_available and num_docks_available equal to zero
-filtered_df = merged_df.filter((col("num_bikes_available") > 0) | (col("num_docks_available") > 0))
-
-# Calculate the bike_availability_ratio
-merged_df = filtered_df.withColumn("bike_availability_ratio", col("num_bikes_available") / (col("num_bikes_available") + col("num_docks_available")))
-
-# COMMAND ----------
-
-merged_df.head(1)
-
-# COMMAND ----------
-
-from pyspark.sql.functions import avg
-weather_availability_df = merged_df.groupBy("temp", "clouds", "humidity", "wind_speed").agg(avg("bike_availability_ratio").alias("average_availability_ratio"))
-
-# COMMAND ----------
-
+import seaborn as sns
 import matplotlib.pyplot as plt
+import pandas as pd
 
-temp_ratio_data = weather_availability_df.select("temp", "average_availability_ratio").collect()
-temp = [row["temp"] for row in temp_ratio_data]
-availability_ratio = [row["average_availability_ratio"] for row in temp_ratio_data]
+# Convert the hourly_monthly_trips DataFrame to a Pandas DataFrame
+hourly_monthly_trips_pd = hourly_monthly_trips.toPandas()
 
-plt.scatter(temp, availability_ratio)
-plt.xlabel("Temperature")
-plt.ylabel("Average Bike Availability Ratio")
-plt.title("Temperature vs. Bike Availability Ratio")
+# Create a FacetGrid with a separate line plot for each month
+g = sns.FacetGrid(hourly_monthly_trips_pd, col="month", col_wrap=4, height=3, aspect=1.5)
+g.map(sns.lineplot, "hour", "trip_count", marker="o")
+
+# Customize the plot titles and labels
+g.set_axis_labels("Hour", "Trip Count")
+g.set_titles("Month {col_name}")
+g.fig.subplots_adjust(top=0.9)
+g.fig.suptitle("Hourly Trips for Most Frequent Start and End Stations by Month", fontsize=16)
+
+# Display the plots
 plt.show()
 
 # COMMAND ----------
 
-print("Clouds:", clouds[:10])
-print("Humidity:", humidity[:10])
-print("Wind Speed:", wind_speed[:10])
-print("Average Bike Availability Ratio:", availability_ratio[:10])
+from pyspark.sql import functions as F
 
-# COMMAND ----------
+# Calculate the most frequent start and end stations
+start_stations_sorted = historic_bike_trips_df.groupBy("start_station_name").count().sort(F.desc("count"))
+end_stations_sorted = historic_bike_trips_df.groupBy("end_station_name").count().sort(F.desc("count"))
 
+# Extract the most frequent start and end station names
+most_frequent_start_station = start_stations_sorted.first()["start_station_name"]
+most_frequent_end_station = end_stations_sorted.first()["end_station_name"]
+
+# Filter trips for the most frequent start and end stations
+start_station_trips = historic_bike_trips_df.filter(F.col("start_station_name") == most_frequent_start_station)
+end_station_trips = historic_bike_trips_df.filter(F.col("end_station_name") == most_frequent_end_station)
+
+# Group by hour and count the trips for start station
+start_station_hourly_trips = start_station_trips.groupBy(F.hour("started_at").alias("hour")).agg(F.count("ride_id").alias("trip_count")).orderBy("hour")
+
+# Group by hour and count the trips for end station
+end_station_hourly_trips = end_station_trips.groupBy(F.hour("ended_at").alias("hour")).agg(F.count("ride_id").alias("trip_count")).orderBy("hour")
+
+# Convert to Pandas DataFrames
+start_station_hourly_trips_pd = start_station_hourly_trips.toPandas()
+end_station_hourly_trips_pd = end_station_hourly_trips.toPandas()
+
+# Plot the line graphs for both stations
 import matplotlib.pyplot as plt
 
-# Remove None values from availability_ratio
-availability_ratio = [value for value in availability_ratio if value is not None]
-
-# Create subplots
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-# Clouds vs. Bike Availability
-axes[0].scatter(clouds, availability_ratio, alpha=0.5)
-axes[0].set_title('Clouds vs. Bike Availability Ratio')
-axes[0].set_xlabel('Clouds')
-axes[0].set_ylabel('Bike Availability Ratio')
-
-# Humidity vs. Bike Availability
-axes[1].scatter(humidity, availability_ratio, alpha=0.5)
-axes[1].set_title('Humidity vs. Bike Availability Ratio')
-axes[1].set_xlabel('Humidity')
-axes[1].set_ylabel('Bike Availability Ratio')
-
-# Wind Speed vs. Bike Availability
-axes[2].scatter(wind_speed, availability_ratio, alpha=0.5)
-axes[2].set_title('Wind Speed vs. Bike Availability Ratio')
-axes[2].set_xlabel('Wind Speed')
-axes[2].set_ylabel('Bike Availability Ratio')
-
-# Show the plots
+plt.figure(figsize=(12, 6))
+plt.plot(start_station_hourly_trips_pd["hour"], start_station_hourly_trips_pd["trip_count"], label=f"{most_frequent_start_station} (Start)")
+plt.plot(end_station_hourly_trips_pd["hour"], end_station_hourly_trips_pd["trip_count"], label=f"{most_frequent_end_station} (End)")
+plt.xlabel("Hour of the Day")
+plt.ylabel("Number of Trips")
+plt.title("Hourly Trips for Most Frequent Start and End Stations")
+plt.legend()
+plt.xticks(range(0, 24))
+plt.grid()
 plt.show()
-
 
 # COMMAND ----------
 
+# Join the start_station_hourly_trips and end_station_hourly_trips DataFrames
+hourly_trips_both_stations = start_station_hourly_trips.alias("start").join(
+    end_station_hourly_trips.alias("end"), F.col("start.hour") == F.col("end.hour"), "inner"
+).select(
+    F.col("start.hour").alias("hour"),
+    F.col("start.trip_count").alias("start_station_trip_count"),
+    F.col("end.trip_count").alias("end_station_trip_count")
+).orderBy("hour")
 
+# Convert the hourly_trips_both_stations DataFrame to a Pandas DataFrame
+hourly_trips_both_stations_pd = hourly_trips_both_stations.toPandas()
+
+# Create a FacetGrid with a separate line plot for each station
+g = sns.FacetGrid(hourly_trips_both_stations_pd, height=4, aspect=2)
+g.map(sns.lineplot, "hour", "start_station_trip_count", marker="o", label=f"{most_frequent_start_station} (Start)")
+g.map(sns.lineplot, "hour", "end_station_trip_count", marker="o", label=f"{most_frequent_end_station} (End)")
+
+# Customize the plot titles and labels
+g.set_axis_labels("Hour", "Trip Count")
+g.add_legend(title="Station")
+g.fig.subplots_adjust(top=0.9)
+g.fig.suptitle("Hourly Trips for Most Frequent Start and End Stations", fontsize=16)
+
+# Display the plots
+plt.show()
