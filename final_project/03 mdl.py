@@ -31,104 +31,135 @@ nyc_weather_df = spark.read.csv(
 # Convert the 'dt' column from Unix timestamp to a date type column
 nyc_weather_df = nyc_weather_df.withColumn("date", to_date(from_unixtime("dt")))
 
-bike_status = f"dbfs:/FileStore/tables/G13/bronze/bike-status/"
-bike_status_df = spark.read.format('delta').load(bike_status)
+# bike_status = f"dbfs:/FileStore/tables/G13/bronze/bike-status/"
+# bike_status_df = spark.read.format('delta').load(bike_status)
 
-bike_station = f"dbfs:/FileStore/tables/G13/bronze/bike-station-info/"
-bike_station_df = spark.read.format('delta').load(bike_station)
-
-# COMMAND ----------
-
-bike_status_df.head(3)
+# bike_station = f"dbfs:/FileStore/tables/G13/bronze/bike-station-info/"
+# bike_station_df = spark.read.format('delta').load(bike_station)
 
 # COMMAND ----------
 
-from pyspark.sql import functions as F
-from pyspark.sql.functions import to_date, from_unixtime
+from pyspark.sql.functions import to_date, date_format
 
-# Extract the date and hour from the 'started_at' column
-historic_bike_trips_df = historic_bike_trips_df.withColumn("date", F.to_date("started_at")).withColumn("hour", F.hour("started_at"))
+lafayette_df = historic_bike_trips_df.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT)
 
-# Aggregate bike trips data by date and hour
-bike_trips_agg = historic_bike_trips_df.groupBy("date", "hour").agg(
-    F.count("ride_id").alias("trip_count")
+# Extract the hour from the 'started_at' column
+lafayette_df = lafayette_df.withColumn("hour", date_format("started_at", "yyyy-MM-dd HH:00:00"))
+
+# Group by hour and calculate the net bike change
+hourly_trips = lafayette_df.groupBy("hour").agg(
+    (F.count(F.when(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))) -
+     F.count(F.when(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id")))).alias("net_bike_change")
 )
 
-# Aggregate weather data by date and hour
-nyc_weather_df = nyc_weather_df.withColumn("hour", F.hour(from_unixtime("dt")))
-weather_hourly_agg = nyc_weather_df.groupBy("date", "hour").agg(
+# Order the result by hour
+hourly_trips = hourly_trips.orderBy("hour")
+
+# COMMAND ----------
+
+# Convert the 'dt' column from Unix timestamp to an hour type column
+nyc_weather_df = nyc_weather_df.withColumn("hour", date_format(from_unixtime("dt"), "yyyy-MM-dd HH:00:00"))
+
+# Group by hour and aggregate weather data
+weather_hourly_agg = nyc_weather_df.groupBy("hour").agg(
     F.avg("temp").alias("avg_temperature"),
     F.avg("rain_1h").alias("avg_precipitation"),
-    F.avg("wind_speed").alias("avg_wind_speed")
+    F.avg("wind_speed").alias("avg_wind_speed"),
+    F.first("main").alias("main")  # Select the first non-null weather condition in each hour
 )
 
-# Join the aggregated bike trips and weather data on the 'date' and 'hour' columns
-merged_df = bike_trips_agg.join(weather_hourly_agg, on=["date", "hour"])
+# COMMAND ----------
+
+hourly_trips_weather = hourly_trips.join(weather_hourly_agg, on="hour")
 
 # COMMAND ----------
 
-display(merged_df.head(3))
+hourly_trips_weather.head(3)
 
 # COMMAND ----------
 
-display(bike_status_df.head(3))
+display(hourly_trips_weather)
 
 # COMMAND ----------
 
-GROUP_STATION_ASSIGNMENT
+hourly_trips_weather_pd = hourly_trips_weather.toPandas()
 
 # COMMAND ----------
 
-# Filter bike_status_df to only include the station you're interested in
-bike_status_filtered = bike_status_df.filter(F.col("station_id") == GROUP_STATION_ASSIGNMENT)
+hourly_trips_weather_pd = hourly_trips_weather_pd.rename(columns={'hour': 'ds', 'net_bike_change': 'y'})
 
 # COMMAND ----------
 
-display(bike_status_filtered.head(3))
+hourly_trips_weather_pd['ds'] = pd.to_datetime(hourly_trips_weather_pd['ds'])
 
 # COMMAND ----------
 
-# Calculate the net bike change for the station
-bike_status_filtered = bike_status_filtered.withColumn("net_bike_change", F.col("num_bikes_available") - F.col("num_bikes_disabled"))
+hourly_trips_weather_pd.head(2)
 
 # COMMAND ----------
 
-# Join the resulting dataframe with bike_station_df on the station_id column
-bike_status_station_joined = bike_status_filtered.join(bike_station_df, on="station_id")
+train_data = hourly_trips_weather_pd.sample(frac=0.8, random_state=42)
+test_data = hourly_trips_weather_pd.drop(train_data.index)
 
 # COMMAND ----------
 
-# Extract the date and hour from the 'last_reported' column (Unix timestamp)
-bike_status_station_joined = bike_status_station_joined.withColumn("date", F.to_date(from_unixtime("last_reported"))).withColumn("hour", F.hour(from_unixtime("last_reported")))
+train_data
 
 # COMMAND ----------
 
-# Join this dataframe with merged_df on the date and hour columns
-final_df = merged_df.join(bike_status_station_joined, on=["date", "hour"])
+!pip install fbprophet
 
 # COMMAND ----------
 
-final_df.head(3)
+from fbprophet import Prophet
+
+# Create a Prophet model
+model = Prophet()
+
+# Fit the model to the training data
+model.fit(train_data)
+
+# COMMAND ----------
+
+# Create a future DataFrame for the test dataset
+future = test_data.drop('y', axis=1)
+
+# Make predictions
+forecast = model.predict(future)
+
+# COMMAND ----------
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+y_true = test_data['y'].values
+y_pred = forecast['yhat'].values
+
+mae = mean_absolute_error(y_true, y_pred)
+mse = mean_squared_error(y_true, y_pred)
+
+print(f"Mean Absolute Error: {mae}")
+print(f"Mean Squared Error: {mse}")
+
+# COMMAND ----------
+
+# Merge the true values from the test set with the forecasted values on the 'ds' column
+true_vs_predicted = test_data.merge(forecast[['ds', 'yhat']], on='ds', how='inner')
+
+# Rename the 'yhat' column to 'prediction'
+true_vs_predicted = true_vs_predicted.rename(columns={'yhat': 'prediction'})
+
+# Select the true values and predicted values for net bike change
+true_vs_predicted = true_vs_predicted[["y", "prediction"]]
+
+# Show the true values and predicted values
+print(true_vs_predicted.head())
 
 # COMMAND ----------
 
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# COMMAND ----------
+# Set the max number of rows displayed to a high value
+pd.set_option("display.max_rows", 1000)
 
-final_df.head(3)
-
-# COMMAND ----------
-
-print(final_df.describe())
-
-# COMMAND ----------
-
-print(final_df.isnull().sum())
-
-# COMMAND ----------
-
-
+# Print the entire true_vs_predicted DataFrame
+print(true_vs_predicted)
