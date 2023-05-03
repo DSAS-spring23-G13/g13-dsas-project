@@ -346,6 +346,10 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 import os
 # output folder
 output_path = GROUP_DATA_PATH + "bronze/nyc_weather"
