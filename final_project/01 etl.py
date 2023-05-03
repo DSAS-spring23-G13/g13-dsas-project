@@ -22,7 +22,7 @@ print(start_date,end_date,hours_to_forecast, promote_model)
 
 # MAGIC %md
 # MAGIC ## load historic data
-# MAGIC 
+# MAGIC
 # MAGIC NYC_WEATHER_FILE_PATH
 
 # COMMAND ----------
@@ -54,7 +54,7 @@ display(weather_df)
 
 # MAGIC %md
 # MAGIC ## load historic data
-# MAGIC 
+# MAGIC
 # MAGIC BIKE_TRIP_DATA_PATH
 
 # COMMAND ----------
@@ -116,7 +116,7 @@ display(df)
 
 # MAGIC %sql
 # MAGIC use g13_db;
-# MAGIC 
+# MAGIC
 # MAGIC select * from historic_bike_trips limit 10;
 
 # COMMAND ----------
@@ -131,10 +131,14 @@ display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 
 # COMMAND ----------
 
-# MAGIC 
+
+
+# COMMAND ----------
+
+# MAGIC
 # MAGIC %sql
 # MAGIC -- SHOW DATABASES;
-# MAGIC 
+# MAGIC
 # MAGIC use g13_db;
 # MAGIC -- drop table if exists weather_csv;
 # MAGIC SHOW TABLES;

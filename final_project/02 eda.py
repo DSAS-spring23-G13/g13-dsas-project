@@ -60,12 +60,12 @@ dbutils.fs.ls(BIKE_TRIP_DATA_PATH)
 # COMMAND ----------
 
 display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
-#display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
+# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
 # COMMAND ----------
 
 from pyspark.sql.functions import *
-trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
+trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette t & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
 trip_info = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
 display(trip_info)
 
