@@ -81,7 +81,7 @@ display(weather_info.describe())
 
 # COMMAND ----------
 
-# Load and filter the data
+
 weather_info= spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
 weather_data = weather_info.withColumn("date_weather", to_utc_timestamp(from_unixtime(col("dt")), "UTC"))
 display(weather_data)
