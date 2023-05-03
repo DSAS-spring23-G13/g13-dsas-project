@@ -39,6 +39,15 @@ display(weather_data)
 
 # COMMAND ----------
 
+## Select the features to be used in buiilding the model
+selected_trip_feat = trip_info.select(col('rideable_type'), col("member_casual"))
+selected_weather_feat = weather_data.select(col('temp'))
+
+
+
+
+# COMMAND ----------
+
 ## Select features from the historic bike trips df
 
 
