@@ -311,6 +311,7 @@ df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips")
 
 # COMMAND ----------
 
+
 import os
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType, LongType, ArrayType
 
@@ -378,12 +379,19 @@ weather_query = (
 # Wait for the query to terminate
 # weather_query.awaitTermination()
 
+# MAGIC %sql
+# MAGIC use g13_db;
+# MAGIC
+# MAGIC select * from historic_bike_trips limit 10;
+
+
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## BRONZE_STATION_INFO_PATH
 
 # COMMAND ----------
+
 
 # display(dbutils.fs.rm(GROUP_DATA_PATH + "bronze/bike-info", recurse = True))
 
@@ -465,6 +473,21 @@ stat_query = (stat_df
 # COMMAND ----------
 
 # MAGIC %sql
+
+display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
+# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC
+# MAGIC %sql
+# MAGIC -- SHOW DATABASES;
+# MAGIC
+
 # MAGIC use g13_db;
 # MAGIC -- show tables;
 # MAGIC -- drop table if exists bike_station_info;
