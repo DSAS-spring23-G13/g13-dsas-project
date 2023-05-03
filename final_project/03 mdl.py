@@ -55,22 +55,35 @@ hourly_trips = lafayette_df.groupBy("hour").agg(
 # Order the result by hour
 hourly_trips = hourly_trips.orderBy("hour")
 
+hourly_trips.show()
+
 # COMMAND ----------
+
+from pyspark.sql.functions import date_format, from_unixtime, col
 
 # Convert the 'dt' column from Unix timestamp to an hour type column
 nyc_weather_df = nyc_weather_df.withColumn("hour", date_format(from_unixtime("dt"), "yyyy-MM-dd HH:00:00"))
 
-# Group by hour and aggregate weather data
-weather_hourly_agg = nyc_weather_df.groupBy("hour").agg(
-    F.avg("temp").alias("avg_temperature"),
-    F.avg("rain_1h").alias("avg_precipitation"),
-    F.avg("wind_speed").alias("avg_wind_speed"),
+# Extract date and time from the 'hour' column
+nyc_weather_df = nyc_weather_df.withColumn("date", date_format(col("hour"), "yyyy-MM-dd"))
+nyc_weather_df = nyc_weather_df.withColumn("time", date_format(col("hour"), "HH:mm:ss"))
+
+# Group by hour and select the required columns
+weather_hourly = nyc_weather_df.groupBy("hour", "date", "time").agg(
+    F.first("temp").alias("temperature"),
+    F.first("rain_1h").alias("precipitation"),
+    F.first("wind_speed").alias("wind_speed"),
     F.first("main").alias("main")  # Select the first non-null weather condition in each hour
 )
 
+weather_hourly.show()
+
 # COMMAND ----------
 
-hourly_trips_weather = hourly_trips.join(weather_hourly_agg, on="hour")
+# Join the hourly_trips and weather_hourly DataFrames on the 'date' and 'hour' columns
+hourly_trips_weather = hourly_trips.join(weather_hourly, on=["hour"])
+
+hourly_trips_weather.show()
 
 # COMMAND ----------
 
@@ -163,3 +176,7 @@ pd.set_option("display.max_rows", 1000)
 
 # Print the entire true_vs_predicted DataFrame
 print(true_vs_predicted)
+
+# COMMAND ----------
+
+
