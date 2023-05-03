@@ -22,7 +22,7 @@ print("YOUR CODE HERE...")
 
 # MAGIC %sql
 # MAGIC use g13_db;
-# MAGIC 
+# MAGIC
 # MAGIC -- drop table if exists bike_station_info;?
 # MAGIC show tables;
 # MAGIC -- select * from bike_station_info limit 10;
