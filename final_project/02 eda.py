@@ -172,7 +172,7 @@ holiday_set = set(holidays)
 
 # COMMAND ----------
 
-
+# MAGIC
 # MAGIC %sql
 # MAGIC use g13_db;
 # MAGIC
@@ -471,61 +471,6 @@ avg_trips.show()
 import pandas as pd
 
 avg_trips_pd = avg_trips.toPandas()
-
-# COMMAND ----------
-
-
-### what is percent of 
-
-# COMMAND ----------
-
-# unique rideable
-unique_values = [row.rideable_type for row in oldb_df.select("rideable_type").distinct().collect()]
-# unique_values # ['docked_bike', 'classic_bike', 'electric_bike']
-
-import matplotlib.pyplot as plt
-
-# Set the plot size
-plt.figure(figsize=(10, 6))
-
-# Create a bar plot
-plt.bar(avg_trips_pd['is_holiday'], avg_trips_pd['average_trip_count'], color=['blue', 'orange'])
-
-# Set the plot title, x-label, and y-label
-plt.title("Average Daily Trips by Holiday Status")
-plt.xlabel("Is Holiday?")
-plt.ylabel("Average Trip Count")
-
-
-# Customize the x-axis tick labels
-plt.xticks([0, 1], ['Non-Holiday', 'Holiday'])
-
-# Display the plot
-plt.show()
-
-# COMMAND ----------
-
-# Read the weather data
-nyc_weather_df = spark.read.csv(
-    "dbfs:/FileStore/tables/raw/weather/NYC_Weather_Data.csv",
-    header=True,
-    inferSchema=True
-)
-
-# COMMAND ----------
-
-nyc_weather_df.head(5)
-
-# COMMAND ----------
-
-# Convert the timestamp in the weather data to the appropriate granularity (daily or hourly). For this we'll use daily granularity
-from pyspark.sql.functions import to_date, from_unixtime
-
-# Convert the 'dt' column from Unix timestamp to a date type column
-nyc_weather_df = nyc_weather_df.withColumn("date", to_date(from_unixtime("dt")))
-
-# Show the content and schema of the nyc_weather_df DataFrame
-nyc_weather_df.head(2)
 
 # COMMAND ----------
 
