@@ -153,10 +153,10 @@ nyc_weather_df = nyc_weather_df.withColumn("date", date_format(col("hour"), "yyy
 nyc_weather_df = nyc_weather_df.withColumn("time", date_format(col("hour"), "HH:mm:ss"))
 
 # Group by hour and select the required columns
-weather_hourly = nyc_weather_df.groupBy("hour", "date", "time").agg(
-    F.first("temp").alias("temperature"),
-    F.first("rain_1h").alias("precipitation"),
-    F.first("wind_speed").alias("wind_speed"),
+weather_hourly = nyc_weather_df.groupBy("date", "hour", "time").agg(
+    F.avg("temp").alias("temperature"),
+    F.avg("rain_1h").alias("precipitation"),
+    F.avg("wind_speed").alias("wind_speed"),
     F.first("main").alias("main")  # Select the first non-null weather condition in each hour
 )
 
