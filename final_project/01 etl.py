@@ -23,10 +23,6 @@ import os
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 df = spark.read.format("delta").load(BRONZE_NYC_WEATHER_PATH)
 df_ = spark.read.format("csv").option("header", "true").option("inferSchema","True").load(NYC_WEATHER_FILE_PATH)
 dfa = spark.read.format("delta").load('dbfs:/FileStore/tables/G13/historic_weather_info_v2')
@@ -383,7 +379,7 @@ trip_df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### bike trips
+# MAGIC #### [remove] bike trips
 
 # COMMAND ----------
 
@@ -463,13 +459,12 @@ DROP TABLE IF EXISTS g13_db.streaming_bike_status
 status_query = (
     streaming_status_df
     .writeStream
-    .format("delta")
     .outputMode("append")
+    .format("delta")
     .queryName("status_traffic")
     .trigger(processingTime='30 minutes')
     .option("checkpointLocation", checkpoint_path)
-    .option("path", output_path)
-    .table('streaming_bike_status')
+    .start(output_path)
 )
 
 # COMMAND ----------
@@ -506,18 +501,21 @@ DROP TABLE IF EXISTS g13_db.streaming_nyc_weather
 weather_query = (
     streaming_weather_df
     .writeStream
-    .format("delta")
     .outputMode("append")
+    .format("delta")
     .queryName("nyc_traffic")
     .trigger(processingTime='30 minutes')
     .option("checkpointLocation", checkpoint_path)
-    .option("path", output_path)
-    .table('streaming_nyc_weather')
+    .start(output_path)
 )
 
 # COMMAND ----------
 
 weather_query.status
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
