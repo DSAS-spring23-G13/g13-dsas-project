@@ -1,257 +1,144 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC # markee
+
+# COMMAND ----------
+
+import pyspark.sql.functions as F
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType, ArrayType, TimestampType
+import os
+
+# COMMAND ----------
+
 # MAGIC %run "./includes/includes"
 
 # COMMAND ----------
 
-dbutils.widgets.removeAll()
+# MAGIC %md
+# MAGIC # BRONZE TABLE
+# MAGIC For direct data ingestion, storing historic weather and bike trips data into following delta tables
+# MAGIC 1. Historic_weather_data
+# MAGIC 2. Historic_Bike_trips
+# MAGIC 3. Historic_station_status
 
-dbutils.widgets.text('01.start_date', "2021-10-01")
-dbutils.widgets.text('02.end_date', "2021-03-01")
-dbutils.widgets.text('03.hours_to_forecast', '4')
-dbutils.widgets.text('04.promote_model', 'No')
+# COMMAND ----------
 
-start_date = str(dbutils.widgets.get('01.start_date'))
-end_date = str(dbutils.widgets.get('02.end_date'))
-hours_to_forecast = int(dbutils.widgets.get('03.hours_to_forecast'))
-promote_model = bool(True if str(dbutils.widgets.get('04.promote_model')).lower() == 'yes' else False)
 
-print(start_date,end_date,hours_to_forecast, promote_model)
-# print("YOUR CODE HERE...")
+
+# COMMAND ----------
+
+df = spark.read.format("delta").load(BRONZE_NYC_WEATHER_PATH)
+df_ = spark.read.format("csv").option("header", "true").option("inferSchema","True").load(NYC_WEATHER_FILE_PATH)
+dfa = spark.read.format("delta").load('dbfs:/FileStore/tables/G13/historic_weather_info_v2')
+
+print(df.count())
+print(df_.count())
+print(dfa.count())
+
+# COMMAND ----------
+
+# bronze weather mar 22/23 - may 2/23
+# hist weather nov /21 - mar 10/23
+# hist final nov/21 - apr/ 23
+# display(dfa.sort(F.desc("dt")).limit(1))
+# df_droped = dfa.dropDuplicates(["dt"]) 
+# display(df_droped.select("dt").distinct().count())
+display(df.limit(5))
+
+# COMMAND ----------
+
+df = spark.read.format("delta").load( 'dbfs:/FileStore/tables/G13/historic_weather_info_v4')
+display(df.limit(2))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## load historic data
-# MAGIC
-# MAGIC NYC_WEATHER_FILE_PATH
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC use g13_db;
-# MAGIC
-# MAGIC -- select * 
-# MAGIC select DISTINCT main
-# MAGIC from historic_weather_info
-# MAGIC -- limit 10;
-# MAGIC
-# MAGIC /*
-# MAGIC id:string ?? why this
-# MAGIC dt:string
-# MAGIC temp:string
-# MAGIC feels_like:string
-# MAGIC humidity:string
-# MAGIC visibility:string
-# MAGIC wind_speed:string
-# MAGIC snow_1h:string
-# MAGIC rain_1h:string
-# MAGIC main:string
-# MAGIC pop:string
-# MAGIC +------+
-# MAGIC |  main|
-# MAGIC +------+
-# MAGIC |Clouds|
-# MAGIC |  Rain|
-# MAGIC |  Snow|
-# MAGIC | Clear|
-# MAGIC +------+
-# MAGIC
-# MAGIC // maybess
-# MAGIC pressure:string
-# MAGIC dew_point:string
-# MAGIC uvi:string
-# MAGIC wind_deg:string
-# MAGIC
-# MAGIC // not so important
-# MAGIC clouds:string
-# MAGIC description:string
-# MAGIC icon:string
-# MAGIC loc:string
-# MAGIC lat:string
-# MAGIC lon:string
-# MAGIC timezone:string
-# MAGIC timezone_offset:string
-# MAGIC */
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC use g13_db;
-# MAGIC -- station_id = 5788.13, 66db65aa-0aca-11e7-82f6-3863bb44ef7c
-# MAGIC -- show tables;
-# MAGIC
-# MAGIC -- bike_station_info
-# MAGIC
-# MAGIC -- station_id:string
-# MAGIC -- name:string
-# MAGIC -- short_name:string //no need for this
-# MAGIC -- capacity:long
-# MAGIC
-# MAGIC -- has_kiosk:boolean //no need for this
-# MAGIC -- station_type:string //no need for this
-# MAGIC -- region_id:string
-# MAGIC
-# MAGIC -- lat:double //no need for this
-# MAGIC -- lon:double //no need for this
-# MAGIC -- electric_bike_surcharge_waiver:boolean //no need for this
-# MAGIC
-# MAGIC -- legacy_id:string //no need for this
-# MAGIC
-# MAGIC -- eightd_has_key_dispenser:boolean //no need for this
-# MAGIC -- external_id:string //no need for this
-# MAGIC -- rental_methods:array -> element:string
-# MAGIC
-# MAGIC -- rental_uris.ios:string //no need for this
-# MAGIC -- rental_uris.android:string //no need for this
-# MAGIC
-# MAGIC SELECT DISTINCT station_type from bike_station_info 
-# MAGIC -- where station_id like '66db65aa-0aca-11e7-82f6-3863bb44ef7c' 
-# MAGIC -- limit 5;
-
-# COMMAND ----------
-
-# %sql
-# use g13_db;
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather_info/'))
-
-# COMMAND ----------
-
-df = spark.read.format('delta').load('dbfs:/FileStore/tables/G13/historic_weather_info/')
-df.select('main').distinct().show()
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC use g13_db;
-# MAGIC -- station_id = 5788.13, 66db65aa-0aca-11e7-82f6-3863bb44ef7c
-# MAGIC -- show tables;
-# MAGIC -- SELECT num_scooters_available, num_ebikes_available, num_bikes_available, num_docks_available, num_scooters_unavailable
-# MAGIC SELECT *
-# MAGIC -- from bike_station_info
-# MAGIC from station_status
-# MAGIC -- where  name = 'Lafayette St & E 8 St'
-# MAGIC where station_id = '66db65aa-0aca-11e7-82f6-3863bb44ef7c' and is_returning = 0
-# MAGIC -- limit 5;
-# MAGIC
-# MAGIC -- num_ebikes_available:long
-# MAGIC -- num_docks_available:long
-# MAGIC -- num_scooters_available:double
-# MAGIC -- num_bikes_available:long
-# MAGIC
-# MAGIC -- num_scooters_unavailable:double
-# MAGIC -- num_docks_disabled:long
-# MAGIC -- num_bikes_disabled:long
-# MAGIC
-# MAGIC -- station_id:string
-# MAGIC
-# MAGIC -- //no need for this
-# MAGIC -- is_installed:long
-# MAGIC -- legacy_id:string //no need for this
-# MAGIC -- last_reported:long
-# MAGIC -- is_renting:long //no need for this
-# MAGIC -- is_returning:long //no need for this
-# MAGIC -- eightd_has_available_keys:boolean //is it needed??
-# MAGIC -- station_status:string
-# MAGIC
-# MAGIC -- drop below as it is null anyway
-# MAGIC -- valet.region:string
-# MAGIC -- valet.off_dock_capacity:double
-# MAGIC -- valet.active:boolean
-# MAGIC -- valet.dock_blocked_count:double
-# MAGIC -- valet.off_dock_count:double
-# MAGIC -- valet.station_id:string
-# MAGIC -- valet.valet_revision:double
-# MAGIC
-# MAGIC -- SELECT * from bike_station_info WHERE name = 'Lafayette St & E 8 St' LIMIT 10;
-# MAGIC -- select * from historic_bike_trips WHERE contains(end_station_id, 190);
-# MAGIC -- 1,965 rows for id
-# MAGIC -- select count(DISTINCT start_station_name), count(DISTINCT start_station_id) from historic_bike_trips;
-# MAGIC -- select count(DISTINCT start_station_id) as a from historic_bike_trips union all SELECT count(DISTINCT end_station_name) as b from historic_bike_trips;
-# MAGIC -- SELECT DISTINCT CONCAT(start_station_id, ' ', end_station_id) AS combined_values
-# MAGIC -- FROM historic_bike_trips; 10506882, 29585988, 306185
-# MAGIC -- SELECT DISTINCT rideable_type FROM historic_bike_trips
-# MAGIC -- SELECT count(*) from historic_bike_trips where rideable_type = 'docked_bike';
-
-# COMMAND ----------
-
-# INSIGHTS
-# do we find lat/lng important?
-# member_casual; notice how these two types of actor have diff behaviour? doubtful
-# how is there more station_name than station_id; use station_id for model
-# is there a change in station capacity? if so, how about storing density instead of actual count?
-# 0.4app - for map use databricks visualization
-# total_bike = ebike + bike + scooter
-# if is_returning is set to true, it means it accepts unlimited vehicle returns based on below description of the value?
-# `Is the station accepting vehicle returns?
-
-# true - Station is accepting vehicle returns. Even if the station is full, if it would otherwise allow vehicle returns, this value MUST be true.
-# false - Station is not accepting vehicle returns.
-
-# If the station is temporarily taken out of service and not allowing vehicle returns, this field MUST be set to false.
-
-# If a station becomes inaccessible to users due to road construction or other factors, this field SHOULD be set to false.`
-
-ride_id:string
-rideable_type:string
-start_station_name:string
-start_station_id:string
-end_station_name:string
-end_station_id:string
-member_casual:string
-started_at:timestamp
-ended_at:timestamp
-
-end_lng:double
-end_lat:double
-start_lng:double
-start_lat:double
-
-# verify update dt
-og_df = (spark.read.format('csv').option("inferSchema","True").option('header', 'true')
-.load('dbfs:/FileStore/tables/raw/bike_trips/202303_citibike_tripdata.csv'))
-display(og_df.orderBy(col('ended_at')))
-# display(dbutils.fs.ls(BIKE_TRIP_DATA_PATH))
-
-# COMMAND ----------
-
-# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather/', recurse= True))
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather_info/'))
+# MAGIC ## Reading historic weather data using batch stream
+# MAGIC <p>removing duplicates by datetime, renaming columns for ease of access</p>
 
 # COMMAND ----------
 
 import os
-# Read data from a CSV file in batch mode
-weather_df = spark.read \
-    .format("csv") \
-    .option("header", "true") \
-    .load(NYC_WEATHER_FILE_PATH)
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
+import pyspark.sql.functions as F
+
+# Define the schema for the DataFrame
+weather_schema = StructType([
+    StructField("dt", TimestampType(), False),
+    StructField("temp", DoubleType(), True),
+    StructField("feels_like", DoubleType(), True),
+    StructField("pressure", IntegerType(), True),
+    StructField("humidity", IntegerType(), True),
+    StructField("clouds", IntegerType(), True),
+    StructField("visibility", IntegerType(), True),
+    StructField("wind_speed", DoubleType(), True),
+    StructField("wind_deg", IntegerType(), True),
+    StructField("pop", DoubleType(), True),
+    StructField("snow.1h", DoubleType(), True),
+    StructField("main", StringType(), True),
+    StructField("rain.1h", DoubleType(), True),
+])
+
+# Create an empty DataFrame
+weather_df = spark.createDataFrame([], weather_schema)
+
+# Get a list of all CSV files in the directory
+csv_files = [os.path.join("dbfs:/FileStore/tables/raw/weather/", f.name) for f in dbutils.fs.ls("dbfs:/FileStore/tables/raw/weather/") if f.name.endswith('.csv')]
+
+# Loop through the CSV files and append them to the DataFrame
+for file in csv_files:
+    temp_df = (spark
+                .read
+                .option("header", True)
+                .schema(weather_schema)
+                .csv(file)
+               )
+    weather_df = weather_df.unionByName(temp_df)
+
+# store as timestamp
+weather_df = weather_df.withColumn('dt', F.from_unixtime(F.col('dt')).cast(TimestampType()))
 
 # Write the processed data to a Parquet file
-output_path = GROUP_DATA_PATH + "historic_weather_info/"
+output_path = GROUP_DATA_PATH + "historic_weather_data_final_1/"
 
-# clean out directory
-if os.path.isdir(output_path):
-    dbutils.fs.rm(output_path, recurse = True)
-
+# re-create output directory
+dbutils.fs.rm(output_path, recurse = True)
 dbutils.fs.mkdirs(output_path)
 
 # define writestream
-weather_df.write \
-    .format("delta") \
-    .mode("overwrite") \
-    .save(output_path)
+weather_df.write.format("delta").mode("overwrite").save(output_path)
 
-weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather_info")
+# also recreate delta table
+spark.sql("""
+drop TABLE g13_db.historic_weather_data
+""")
+weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather_data")
 
-# verify the write
-display(weather_df)
+# COMMAND ----------
+
+# rename the "last_name" column to "surname"
+final_w_df = (weather_df
+        .withColumnRenamed("rain.1h", "rain_1h")
+        .withColumnRenamed("snow.1h", "snow_1h")
+        .dropDuplicates(["dt"])
+)
+
+# display the renamed dataframe
+display(final_w_df.count())
+display(final_w_df.printSchema())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## load historic data
-# MAGIC
-# MAGIC BIKE_TRIP_DATA_PATH
+# MAGIC ## [TODO] optimization
+
+# COMMAND ----------
+
+display(df.count())
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -290,6 +177,70 @@ for file in csv_files:
 #     temp_df = temp_df.withColumn('source_file', input_file_name())
     df = df.unionByName(temp_df)
 
+# Write the DataFrame to a Delta table
+# Write the processed data to a delta table
+output_path = GROUP_DATA_PATH + "historic_bike_trips"
+
+if not os.path.isdir(output_path):
+    dbutils.fs.mkdirs(output_path)
+
+df.write.format("delta").mode("overwrite").save(output_path)
+
+df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips")
+
+# COMMAND ----------
+
+import os
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
+
+# Define the schema for the DataFrame
+schema = StructType([
+    StructField("ride_id", StringType(), True),
+    StructField("rideable_type", StringType(), True),
+    StructField("start_station_name", StringType(), True),
+    StructField("start_station_id", StringType(), True),
+    StructField("end_station_name", StringType(), True),
+    StructField("end_station_id", StringType(), True),
+    StructField("member_casual", IntegerType(), True),import os
+# Read data from a CSV file in batch mode
+weather_df = (spark.read
+    .format("csv")
+    .option("header", "true")
+    .load(NYC_WEATHER_FILE_PATH))
+    StructField("started_at", TimestampType(), True),
+    StructField("ended_at", TimestampType(), True),
+    StructField("end_lng", DoubleType(), True),
+    StructField("end_lat", DoubleType(), True),
+    StructField("start_lng", DoubleType(), True),
+    StructField("start_lat", DoubleType(), True),
+])
+
+# [ride_id: string, rideable_type: string, started_at: timestamp, ended_at: timestamp, start_station_name: string, start_station_id: string, end_station_name: string, end_station_id: string, start_lat: double, start_lng: double, end_lat: double, end_lng: double, ]
+# Define the schema for the Delta table
+schema = StructType([
+    StructField("id", IntegerType(), True),
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True),
+    StructField("email", StringType(), True)
+])
+
+# Create a Delta table with inferSchema set to true and the defined schema
+deltaTable = DeltaTable.createOrReplace(spark, "delta_table",
+                                        schema=schema,
+                                        path="/path/to/delta_table",
+                                        format="delta",
+                                        inferSchema=True)
+
+
+# Create an empty DataFrame
+df = spark.createDataFrame([], schema)
+
+# Loop through the CSV files and append them to the DataFrame
+for file in csv_files:
+    temp_df = spark.read.format('csv').option("inferSchema","True").option('header', 'true').load(file)
+#     temp_df = temp_df.withColumn('source_file', input_file_name())
+    df = df.unionByName(temp_df)
+
 # COMMAND ----------
 
 # Write the DataFrame to a Delta table
@@ -305,133 +256,279 @@ df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips")
 
 # COMMAND ----------
 
+import os
+# Read data from a CSV file in batch mode
+weather_df = (spark.read
+    .format("csv")
+    .schema()
+    .option("header", "true")
+    .load(NYC_WEATHER_FILE_PATH))
+
+# Write the processed data to a Parquet file
+output_path = GROUP_DATA_PATH + "historic_weather_info/"
+
+# clean out directory
+if os.path.isdir(output_path):
+    dbutils.fs.rm(output_path, recurse = True)
+
+dbutils.fs.mkdirs(output_path)
+
+# define writestream
+weather_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .save(output_path)
+
+weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather_info")
+
+# verify the write
+display(weather_df)
+
+# COMMAND ----------
+
+import os
+# Read data from a CSV file in batch mode
+weather_df = spark.read \
+    .format("csv") \
+    .option("header", "true") \
+    .load(NYC_WEATHER_FILE_PATH)
+
+# Write the processed data to a Parquet file
+output_path = GROUP_DATA_PATH + "historic_weather_info/"
+
+# clean out directory
+if os.path.isdir(output_path):
+    dbutils.fs.rm(output_path, recurse = True)
+
+dbutils.fs.mkdirs(output_path)
+
+# define writestream
+weather_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .save(output_path)
+
+weather_df.write.format("delta").mode("overwrite").saveAsTable("historic_weather_info")
+
+# verify the write
+display(weather_df)
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC # stream live data
-# MAGIC ##### BRONZE_NYC_WEATHER_PATH
+# MAGIC ## Reading historic bike trips data using batch stream
 
 # COMMAND ----------
 
 import os
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType, LongType, ArrayType
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
 
-# weather schema
+# Get a list of all CSV files in the directory
+csv_files = [os.path.join(BIKE_TRIP_DATA_PATH, f.name) for f in dbutils.fs.ls(BIKE_TRIP_DATA_PATH) if f.name.endswith('.csv')]
+
 # Define the schema for the DataFrame
-# w_schema = StructType([
-#     StructField("dt", LongType(), True),
-#     StructField("pressure", LongType(), True),
-#     StructField("humidity", LongType(), True),
-#     StructField("clouds", LongType(), True),
-#     StructField("visibility", LongType(), True),
-#     StructField("wind_deg", LongType(), True),
-#     StructField("wind_gust", DoubleType(), True),
-#     StructField("wind_speed", DoubleType(), True),
-#     StructField("uvi", DoubleType(), True),
-#     StructField("dew_point", DoubleType(), True),
-#     StructField("feels_like", DoubleType(), True),
-#     StructField("temp", DoubleType(), True),
-#     StructField("pop", DoubleType(), True),
-#     StructField("rain.1h", DoubleType(), True),
-#     StructField("time", DoubleType(), True),
-#     StructField("weather", ArrayType(
-#         StructType([
-#             StructField("description", StringType(), True),
-#             StructField("icon", IntegerType(), True),
-#             StructField("main", StringType(), True),
-#             StructField("id", LongType(), True),
-#         ])
-#     ), True)    
-# ])
-# streaming_weather_df.isStreaming
-# display(dbutils.fs.rm(output_path, recurse = True))
+bike_schema = StructType([
+    StructField("ride_id", StringType(), True),
+    StructField("rideable_type", StringType(), True),
+    StructField("start_station_name", StringType(), True),
+    StructField("start_station_id", StringType(), True),
+    StructField("end_station_name", StringType(), True),
+    StructField("end_station_id", StringType(), True),
+    StructField("member_casual", IntegerType(), True),
+    StructField("started_at", TimestampType(), True),
+    StructField("ended_at", TimestampType(), True),
+    StructField("end_lng", DoubleType(), True),
+    StructField("end_lat", DoubleType(), True),
+    StructField("start_lng", DoubleType(), True),
+    StructField("start_lat", DoubleType(), True),
+])
+
+# Create an empty DataFrame
+trip_df = spark.createDataFrame([], bike_schema)
+
+# Loop through the CSV files and append them to the DataFrame
+for file in csv_files:
+    temp_df = spark.read.format('csv').option('header', 'true').csv(file)
+    trip_df = trip_df.unionByName(temp_df)
+
+# Write the DataFrame to a Delta table
+# Write the processed data to a delta table
+output_path = GROUP_DATA_PATH + "historic_bike_trips_final_1/"
+
+# re-create output directory
+dbutils.fs.rm(output_path, recurse = True)
+dbutils.fs.mkdirs(output_path)
+
+trip_df.write.format("delta").mode("overwrite").save(output_path)
+
+# also recreate delta table
+spark.sql("""
+drop TABLE g13_db.historic_bike_trips
+""")
+trip_df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_trips")
+
+# store as timestamp
+# weather_df = weather_df.withColumn('dt', F.from_unixtime(F.col('dt')).cast(TimestampType()))
 
 # COMMAND ----------
 
-import os
-# output folder
-output_path = GROUP_DATA_PATH + "bronze/nyc_weather"
+# MAGIC %md
+# MAGIC ## [TODO] optimization for storage
 
-if not os.path.isdir(output_path):
-    dbutils.fs.mkdirs(output_path)
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## stream live data
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### bike trips
+
+# COMMAND ----------
+
+# create readstream
+streaming_trip_df = (
+    spark.readStream
+    .format('delta')
+    .load(BRONZE_STATION_INFO_PATH)
+)
+
+# streaming_trip_df = (
+#     streaming_trip_df
+#     .withColumn('last_reported', F.from_unixtime(F.col('last_reported')).cast(TimestampType()))
+#     )
+
+# COMMAND ----------
+
+# output folder
+output_path = GROUP_DATA_PATH + "streaming/bike_trip/output"
+checkpoint_path = GROUP_DATA_PATH + "streaming/bike_trip"
+
+#  re-create output directory
+dbutils.fs.rm(checkpoint_path, recurse = True)
+dbutils.fs.mkdirs(checkpoint_path)
+
+# re do delta table
+spark.sql("""
+DROP TABLE IF EXISTS g13_db.streaming_bike_trip
+""")
+
+trip_query = (
+    streaming_trip_df
+    .writeStream
+    .format("delta")
+    .outputMode("append")
+    .queryName("trip_traffic")
+    .trigger(processingTime='30 minutes')
+    .option("checkpointLocation", checkpoint_path)
+    .option("path", output_path)
+    .table('streaming_bike_trip')
+)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### bike status
+
+# COMMAND ----------
+
+# create readstream
+streaming_status_df = (
+    spark.readStream
+    .format('delta')
+    .load(BRONZE_STATION_STATUS_PATH)
+)
+
+streaming_status_df = (
+    streaming_status_df
+    .withColumn('last_reported', F.from_unixtime(F.col('last_reported')).cast(TimestampType()))
+    )
+
+# COMMAND ----------
+
+# output folder
+output_path = GROUP_DATA_PATH + "streaming/bike_staus/output"
+checkpoint_path = GROUP_DATA_PATH + "streaming/bike_staus"
+
+#  re-create output directory
+dbutils.fs.rm(checkpoint_path, recurse = True)
+dbutils.fs.mkdirs(checkpoint_path)
+
+# re do delta table
+spark.sql("""
+DROP TABLE IF EXISTS g13_db.streaming_bike_status
+""")
+
+status_query = (
+    streaming_status_df
+    .writeStream
+    .format("delta")
+    .outputMode("append")
+    .queryName("status_traffic")
+    .trigger(processingTime='30 minutes')
+    .option("checkpointLocation", checkpoint_path)
+    .option("path", output_path)
+    .table('streaming_bike_status')
+)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### nyc weather
+
+# COMMAND ----------
+
 # create readstream
 streaming_weather_df = (
     spark.readStream
     .format('delta')
-    .option("checkpointLocation", output_path)
     .load(BRONZE_NYC_WEATHER_PATH)
 )
+
+streaming_weather_df = streaming_weather_df.withColumn('dt', F.from_unixtime(F.col('dt')).cast(TimestampType()))
+
+# COMMAND ----------
+
+# output folder
+output_path = GROUP_DATA_PATH + "streaming/nyc_weather/output"
+checkpoint_path = GROUP_DATA_PATH + "streaming/nyc_weather"
+
+#  re-create output directory
+dbutils.fs.rm(checkpoint_path, recurse = True)
+dbutils.fs.mkdirs(checkpoint_path)
+
+# re do delta table
+spark.sql("""
+DROP TABLE IF EXISTS g13_db.streaming_nyc_weather
+""")
 
 weather_query = (
     streaming_weather_df
     .writeStream
-    .format("delta").outputMode("append")
-    .queryName('bike_status')
-    .trigger(processingTime='1 hour')
-    .option("checkpointLocation", output_path)
+    .format("delta")
+    .outputMode("append")
+    .queryName("nyc_traffic")
+    .trigger(processingTime='30 minutes')
+    .option("checkpointLocation", checkpoint_path)
     .option("path", output_path)
-    .table('nyc_weather')
+    .table('streaming_nyc_weather')
 )
 
-# Wait for the query to terminate
-# weather_query.awaitTermination()
+# COMMAND ----------
+
+weather_query.status
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## BRONZE_STATION_INFO_PATH
-
-# COMMAND ----------
-
-# display(dbutils.fs.rm(GROUP_DATA_PATH + "bronze/bike-info", recurse = True))
+# MAGIC ### [todo] check trigger active
 
 # COMMAND ----------
 
 import os
-output_path = GROUP_DATA_PATH + "bronze/bike-station-info"
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType, LongType, ArrayType, DateType
 
-if not os.path.isdir(output_path):
-    dbutils.fs.mkdirs(output_path)
-
-station_query = (
-    spark
-    .readStream
-    .format('delta')
-    .option("checkpointLocation", output_path)
-    .load(BRONZE_STATION_INFO_PATH)
-#     .writeStream
-#     .option("checkpointLocation", output_path)
-#     .option("mergeSchema", "true")
-#     .option("path", output_path)
-#     .outputMode("append")
-#     .table('bike_station_info')
-)
-
-station_query.isStreaming
-
-# COMMAND ----------
-
-b_query_df = (station_query
-              .writeStream
-              .format("delta")
-              .outputMode("append")  # complete = all the counts should be in the table
-              .queryName('bike_info')
-              .trigger(processingTime='1 hour')
-              .option("checkpointLocation", output_path)
-              .option("path", output_path)
-              .table('bike_station_info')
-#              .start(output_path)
-             )
-
-# Wait for the query to terminate
-# b_query_df.awaitTermination()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### BRONZE_STATION_STATUS_PATH
-
-# COMMAND ----------
-
-import os
 status_output_path = GROUP_DATA_PATH + "bronze/bike-status"
 
 if not os.path.isdir(status_output_path):
@@ -440,45 +537,57 @@ if not os.path.isdir(status_output_path):
 stat_df = (
     spark
     .readStream
+    .option("schema", schema)
+    .option("enforceSchema", "true")
     .format('delta')
     .option("checkpointLocation", status_output_path)
     .load(BRONZE_STATION_STATUS_PATH)
+    .writeStream
+    .format("delta")
+    .outputMode("append")  # complete = all the counts should be in the table
+    .queryName('station_status')
+    .trigger(processingTime='30 minutes')
+    .option("checkpointLocation", status_output_path)
+    .option("path", status_output_path)
+    .table('bike_status')
 )
 
 # COMMAND ----------
 
-stat_query = (stat_df
-              .writeStream
-              .format("delta")
-              .outputMode("append")  # complete = all the counts should be in the table
-              .queryName('bike_status')
-              .trigger(processingTime='1 hour')
-              .option("checkpointLocation", status_output_path)
-              .option("path", status_output_path)
-              .table('station_status')
-             )
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC use g13_db;
-# MAGIC -- show tables;
-# MAGIC -- drop table if exists bike_station_info;
-# MAGIC select * from bike_station_info limit 10;
+# MAGIC %md
+# MAGIC ## rough work
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## store historic data in group path
+# MAGIC ##### schema weather
 
 # COMMAND ----------
 
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
-# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
-# COMMAND ----------
-
-import json
-
-# Return Success
-dbutils.notebook.exit(json.dumps({"exit_code": "OK"}))
+# schema
+w_schema = StructType([
+  StructField("dt", TimestampType(), True),
+  StructField("temp", DoubleType(), True),
+  StructField("feels_like", DoubleType(), True),
+  StructField("pressure", LongType(), True),
+  StructField("humidity", LongType(), True),
+  StructField("dew_point", DoubleType(), True),
+  StructField("uvi", DoubleType(), True),
+  StructField("clouds", LongType(), True),
+  StructField("visibility", LongType(), True),
+  StructField("wind_speed", DoubleType(), True),
+  StructField("wind_deg", LongType(), True),
+  StructField("wind_gust", DoubleType(), True),
+  StructField("weather", ArrayType(
+    StructType([
+      StructField("description", StringType(), True),
+      StructField("icon", StringType(), True),
+      StructField("id", LongType(), True),
+      StructField("main", StringType(), True)
+    ])
+  ), True),
+  StructField("pop", DoubleType(), True),
+  StructField("rain.1h", DoubleType(), True),
+  StructField("time", StringType(), True)
+])
