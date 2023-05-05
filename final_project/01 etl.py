@@ -379,10 +379,10 @@ weather_query = (
 # Wait for the query to terminate
 # weather_query.awaitTermination()
 
-# MAGIC %sql
-# MAGIC use g13_db;
-# MAGIC
-# MAGIC select * from historic_bike_trips limit 10;
+%sql
+use g13_db;
+
+select * from historic_bike_trips limit 10;
 
 
 # COMMAND ----------
@@ -473,9 +473,9 @@ stat_query = (stat_df
 # COMMAND ----------
 
 # MAGIC %sql
-
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
-# display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
+# MAGIC
+# MAGIC display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
+# MAGIC # display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
 # COMMAND ----------
 
@@ -487,7 +487,7 @@ display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 # MAGIC %sql
 # MAGIC -- SHOW DATABASES;
 # MAGIC
-
+# MAGIC
 # MAGIC use g13_db;
 # MAGIC -- show tables;
 # MAGIC -- drop table if exists bike_station_info;
@@ -500,7 +500,7 @@ display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/historic_weather'))
+display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 # display(dbutils.fs.rm('dbfs:/FileStore/tables/G13/historic_weather', recurse = True))
 
 # COMMAND ----------

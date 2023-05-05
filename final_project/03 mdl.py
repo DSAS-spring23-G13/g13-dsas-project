@@ -32,10 +32,69 @@ display(trip_info)
 
 
 # Load and filter the weather data
-weather_info= spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
-weather_data = weather_info.withColumn("date_weather", to_utc_timestamp(from_unixtime(col("dt")), "UTC"))
+weather_data = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info_v2').withColumn('timestamp', from_unixtime('dt')).withColumn("hour_weather",date_format(col('timestamp'),"HH:00")).withColumn("date_weather",to_date("timestamp"))
 display(weather_data)
 
+
+# COMMAND ----------
+
+pip install fbprophet
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+import pandas as pd
+
+# Load the data for our station - Lafayette St & E 8 St
+trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
+trip_info = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
+trip_info = trip_info.withColumn("hour", hour(to_utc_timestamp(col("started_at"), "EST")))
+trip_info = trip_info.select("date", "hour", "start_station_name", "end_station_name")
+trip_info = trip_info.filter(col("start_station_name") == "Lafayette St & E 8 St")
+trip_info = trip_info.withColumn("net_bike_change", when(col("end_station_name") == "Lafayette St & E 8 St", -1).otherwise(1))
+
+# Load and filter the weather data
+weather_data = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info_v2').withColumn('timestamp', from_unixtime('dt')).withColumn("hour_weather",date_format(col('timestamp'),"HH:00")).withColumn("date_weather",to_date("timestamp"))
+weather_data = weather_data.select("date_weather", "hour_weather", "temp", "humidity","pressure", "wind_speed")
+
+# Join trip data and weather data
+
+# Merge the two dataframes by date
+joined_df = trip_info.join(weather_data, (trip_info.date == weather_data.date_weather), "inner").drop("date")
+
+
+# Group by date and hour
+hourly_trips = joined_data.groupBy("date_weather", "hour_weather").agg(sum("net_bike_change").alias("net_bike_change"))
+aggregate_df = hourly_trips.select(col("date_weather"), col("hour_weather"), col("net_bike_change")).toPandas()
+
+aggregated_df = aggregate_df.rename(columns={"date_weather": "ds", "net_bike_change": "y"})
+# Fit Prophet model
+
+# prophet_df = pd.DataFrame(hourly_trips[["ds", "y"]])
+display(aggregate_df)
+# model = Prophet()
+# model.fit(prophet_df)
+
+# # Generate forecast for the next 24 hours
+# future = model.make_future_dataframe(periods=24, freq="H")
+# forecast = model.predict(future)
+
+# # Plot forecast
+# fig = model.plot(forecast)
+# fig.show()
+
+
+# COMMAND ----------
+
+display(joined_df)
+
+# COMMAND ----------
+
+display(hourly_trips)
+
+# COMMAND ----------
+
+display(weather_data)
 
 # COMMAND ----------
 
@@ -63,55 +122,36 @@ display(merged_df)
 
 # COMMAND ----------
 
-# Load the data for our station - Lafayette St & E 8 St
+from pyspark.sql.functions import to_date,col
+from pyspark.sql.functions import year, month, concat_ws, date_format
+
+historic_bike_trips_from  = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter("start_station_name == 'Lafayette St & E 8 St'").withColumn("start_date_column", to_date(col('started_at'))).withColumn("year_month", year(col('start_date_column'))*100 + month(col('start_date_column'))).withColumn("day_of_the_week", date_format(col("started_at"),"E")).withColumn("start_hour",date_format(col("started_at"),"HH:00"))
+display(historic_bike_trips_from)
+
+historic_bike_trips_to  = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter(" end_station_name == 'Lafayette St & E 8 St'").withColumn("end_date_column", to_date(col('ended_at'))).withColumn("year_month", year(col('end_date_column'))*100 + month(col('end_date_column'))).withColumn("day_of_the_week", date_format(col("ended_at"),"E")).withColumn("end_hour",date_format(col('ended_at'),"HH:00"))
+display(historic_bike_trips_to)
+
+from pyspark.sql.functions import from_unixtime
+from pyspark.sql.functions import col
+
+historic_weather = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info_v4').withColumn('human_timestamp', from_unixtime('dt')).withColumn("weather_hour",date_format(col('human_timestamp'),"HH:00")).withColumn("weather_date",to_date("human_timestamp"))
+display(historic_weather)
+
+# COMMAND ----------
+
 from pyspark.sql.functions import *
 import pandas as pd
 
+historic_bike_trips = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips')
+historic_bike_trips_lafayette = historic_bike_trips.filter("start_station_name == 'Lafayette St & E 8 St' OR end_station_name == 'Lafayette St & E 8 St'")
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("start_date_column", to_date(col('started_at')))
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("end_date_column", to_date(col('ended_at')))
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("year_month", year(col('start_date_column'))*100 + month(col('start_date_column')))
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("day_of_the_week", date_format(col("started_at"),"E"))
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("start_hour",date_format(col("started_at"),"HH:00"))
+historic_bike_trips_lafayette = historic_bike_trips_lafayette.withColumn("end_hour",date_format(col("ended_at"),"HH:00"))
 
-trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
-trip_info = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
-
-# Load and filter the weather data
-weather_info= spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
-weather_data = weather_info.withColumn("date_weather", to_utc_timestamp(from_unixtime(col("dt")), "UTC"))
-
-# Merge the two dataframes by date
-merged_df = trip_info.join(weather_data, (trip_info.date == weather_data.date_weather), "inner").drop("date_weather")
-
-# Add an hour column to the merged_df
-merged_df = merged_df.withColumn("hour", hour(col("date")))
-
-merged_df = merged_df.toPandas()
-
-
-# Reset the index
-aggregated_df.reset_index(inplace=True)
-
-# Rename the columns
-aggregated_df = aggregated_df.withColumnRenamed("date_weather", "ds").withColumnRenamed("net_bike_change", "y")
-
-# Fit the Prophet model
-from prophet import Prophet
-prophet_model = Prophet()
-prophet_model.add_regressor("temp")
-prophet_model.add_regressor("pressure")
-prophet_model.add_regressor("humidity")
-prophet_model.add_regressor("wind_speed")
-prophet_model.add_regressor("clouds")
-prophet_model.fit(aggregated_df)
-
-# Make predictions
-future = prophet_model.make_future_dataframe(periods=24, freq='H')
-future = future.drop("y")
-future = future.withColumn("temp", lit(55))
-future = future.withColumn("pressure", lit(1013))
-future = future.withColumn("humidity", lit(70))
-future = future.withColumn("wind_speed", lit(5))
-future = future.withColumn("clouds", lit(50))
-forecast = prophet_model.predict(future)
-
-# Display the forecast
-display(forecast.select("ds", "yhat", "yhat_lower", "yhat_upper"))
+display(historic_bike_trips)
 
 
 # COMMAND ----------
@@ -119,61 +159,85 @@ display(forecast.select("ds", "yhat", "yhat_lower", "yhat_upper"))
 # Load the data for our station - Lafayette St & E 8 St
 from pyspark.sql.functions import *
 import pandas as pd
+from fbprophet import Prophet
 
 
+# Load the data for our station - Lafayette St & E 8 St
 trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
-trip_info = trip_info.withColumn("date", date_format(col("started_at"), "yyyy-MM-dd HH:00:00"))
+trip_info = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
+trip_info = trip_info.withColumn("hour", hour(to_utc_timestamp(col("started_at"), "EST")))
+trip_info = trip_info.select("date", "hour", "start_station_name", "end_station_name")
+trip_info = trip_info.filter(col("start_station_name") == "Lafayette St & E 8 St")
+trip_info = trip_info.withColumn("net_bike_change", when(col("end_station_name") == "Lafayette St & E 8 St", -1).otherwise(1))
 
 # Load and filter the weather data
-weather_info= spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
-weather_data = weather_info.withColumn("date_weather", to_utc_timestamp(from_unixtime(col("dt")), "UTC"))
+weather_data = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
+weather_data = weather_data.withColumn("date_weather", date_format(to_utc_timestamp(col("dt"), "UTC"), "yyyy-MM-dd HH:mm:ss").cast("date"))
+weather_data = weather_data.select("date_weather", "temp", "humidity", "wind_speed")
 
-# Merge the two dataframes by date
-merged_df = trip_info.join(weather_data, (trip_info.date == weather_data.date_weather), "inner").drop("date_weather")
+# Join trip data and weather data
+joined_data = trip_info.join(weather_data, (trip_info.date == weather_data.date_weather), "left")
 
-# Add an hour column to the merged_df
-merged_df = merged_df.withColumn("hour", hour(col("date")))
+# Group by date and hour
+hourly_trips = joined_data.groupBy("date", "hour").agg(sum("net_bike_change").alias("y")).withColumnRenamed("date", "ds")
+hourly_trips = hourly_trips.toPandas()
 
-#merged_df = merged_df.toPandas()
+# Fit Prophet model
+model = Prophet()
+model.add_regressor("temp")
+model.add_regressor("pressure")
+model.add_regressor("humidity")
+model.add_regressor("wind_speed")
+model.fit(hourly_trips)
 
-# # Group data by date and hour columns
-# aggregated_df = aggregated_df.set_index('date')
-# aggregated_df.index = pd.to_datetime(aggregated_df.index)
-
-aggregate_df = trip_info.groupBy("hour").agg(
-    (F.count(F.when(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))) -
-     F.count(F.when(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id")))).alias("net_bike_change")
-)
-# Reset the index
-aggregated_df.reset_index(inplace=True)
-
-
-
-
-# Rename the columns
-aggregated_df = aggregated_df.rename(columns={"date": "ds", "net_bike_change": "y"})
-
-# Fit the Prophet model
-from prophet import Prophet
-prophet_model = Prophet()
-prophet_model.add_regressor("temp")
-prophet_model.add_regressor("pressure")
-prophet_model.add_regressor("humidity")
-prophet_model.add_regressor("wind_speed")
-prophet_model.add_regressor("clouds")
-prophet_model.fit(aggregated_df)
-
-# Make predictions
-future = prophet_model.make_future_dataframe(periods=24, freq='H')
+# Generate forecast for the next 24 hours
+future = model.make_future_dataframe(periods=24, freq="H")
 future["temp"] = 55
 future["pressure"] = 1013
 future["humidity"] = 70
 future["wind_speed"] = 5
-future["clouds"] = 50
-forecast = prophet_model.predict(future)
+forecast = model.predict(future)
 
-# Display the forecast
-display(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']])
+# Plot forecast
+fig = model.plot(forecast)
+fig.show()
+
+# COMMAND ----------
+
+# Load the data for our station - Lafayette St & E 8 St
+trip_info = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_bike_trips').filter((col("start_station_name")== "Lafayette St & E 8 St") | (col("end_station_name")== "Lafayette St & E 8 St"))
+trip_info = trip_info.withColumn("date", to_date(col("started_at"), "yyyy-MM-dd"))
+trip_info = trip_info.withColumn("hour", hour(to_utc_timestamp(col("started_at"), "EST")))
+trip_info = trip_info.select("date", "hour", "start_station_name", "end_station_name")
+trip_info = trip_info.filter(col("start_station_name") == "Lafayette St & E 8 St")
+trip_info = trip_info.withColumn("net_bike_change", when(col("end_station_name") == "Lafayette St & E 8 St", -1).otherwise(1))
+
+# Load and filter the weather data
+weather_data = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info')
+weather_data = weather_data.withColumn("date_weather", date_format(to_utc_timestamp(col("dt"), "UTC"), "yyyy-MM-dd HH:mm:ss").cast("date"))
+weather_data = weather_data.select("date_weather", "temp", "humidity", "wind_speed")
+
+
+# Join trip data and weather data
+joined_data = trip_info.join(weather_data, (trip_info.date == weather_data.date_weather), "left")
+
+# Group by date and hour
+hourly_trips = joined_data.groupBy("date", "hour").agg(sum("net_bike_change").alias("net_bike_change"))
+hourly_trips = hourly_trips.toPandas()
+
+# Fit Prophet model
+hourly_trips.columns = ["ds", "hour", "y"]
+prophet_df = pd.DataFrame(hourly_trips[["ds", "y"]])
+model = Prophet()
+model.fit(prophet_df)
+
+# Generate forecast for the next 24 hours
+future = model.make_future_dataframe(periods=24, freq="H")
+forecast = model.predict(future)
+
+# Plot forecast
+fig = model.plot(forecast)
+fig.show()
 
 
 # COMMAND ----------
