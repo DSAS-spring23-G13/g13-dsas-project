@@ -3,20 +3,6 @@
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-# start_date = str(dbutils.widgets.get('01.start_date'))
-# end_date = str(dbutils.widgets.get('02.end_date'))
-# hours_to_forecast = int(dbutils.widgets.get('03.hours_to_forecast'))
-# promote_model = bool(True if str(dbutils.widgets.get('04.promote_model')).lower() == 'yes' else False)
-
-# print(start_date,end_date,hours_to_forecast, promote_model)
-# print("YOUR CODE HERE...")
-
-# COMMAND ----------
-
 from pyspark.sql.functions import hour, dayofweek
 from pyspark.sql import functions as F
 from pyspark.sql.functions import to_date, from_unixtime
@@ -95,17 +81,25 @@ lafayette_df = historic_bike_trips_df
 lafayette_df = lafayette_df.dropna()
 
 # Check for null values
-for column in lafayette_df.columns:
-    null_count = lafayette_df.filter(isnull(column)).count()
-    print(f"Null values in {column}: {null_count}")
+# for column in lafayette_df.columns:
+#     null_count = lafayette_df.filter(isnull(column)).count()
+#     print(f"Null values in {column}: {null_count}")
 
 # Extract the hour from the 'started_at' column
 lafayette_df = lafayette_df.withColumn("hour", date_format("started_at", "yyyy-MM-dd HH:00:00"))
 
 # Group by hour and calculate the net bike change
+# hourly_trips = lafayette_df.groupBy("hour").agg(
+#     (F.count(F.when(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))) -
+#      F.count(F.when(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id")))).alias("net_bike_change")
+# )
+
+# Group by hour and calculate the net bike change
 hourly_trips = lafayette_df.groupBy("hour").agg(
-    (F.count(F.when(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))) -
-     F.count(F.when(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id")))).alias("net_bike_change")
+    F.abs(
+        (F.count(F.when(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))) -
+         F.count(F.when(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT, F.col("ride_id"))))
+    ).alias("net_bike_change")
 )
 
 # Order the result by hour
@@ -200,6 +194,14 @@ bike_status_df.head(1)
 
 # COMMAND ----------
 
+hourly_trips_weather.head()
+
+# COMMAND ----------
+
+hourly_trips_weather = hourly_trips_weather.drop("date", "time", "main")
+
+# COMMAND ----------
+
 hourly_trips_weather_pd = hourly_trips_weather.toPandas()
 
 # COMMAND ----------
@@ -216,8 +218,8 @@ hourly_trips_weather_pd.head(2)
 
 # COMMAND ----------
 
-hourly_trips_weather_pd = hourly_trips_weather_pd.drop("date", axis=1)
-hourly_trips_weather_pd = hourly_trips_weather_pd.drop("time", axis=1)
+# hourly_trips_weather_pd = hourly_trips_weather_pd.drop("date", axis=1)
+# hourly_trips_weather_pd = hourly_trips_weather_pd.drop("time", axis=1)
 
 # COMMAND ----------
 
@@ -253,6 +255,7 @@ forecast = model.predict(future)
 # COMMAND ----------
 
 from fbprophet.plot import plot
+import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(figsize=(15, 6))
 ax.plot(test_data['ds'], test_data['y'], label='True Values', color='blue', linewidth=1)
@@ -307,8 +310,6 @@ pd.set_option("display.max_rows", 1000)
 print(true_vs_predicted)
 
 # COMMAND ----------
-
-import matplotlib.pyplot as plt
 
 # Convert the 'ds' column in test_data and forecast to a datetime object
 test_data['ds'] = pd.to_datetime(test_data['ds'])
