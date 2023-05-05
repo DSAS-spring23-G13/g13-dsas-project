@@ -24,7 +24,30 @@ display(dbutils.fs.ls('dbfs:/FileStore/tables/G13'))
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 display(dbutils.fs.ls('dbfs:/FileStore/tables/G13/bronze'))
+
+# COMMAND ----------
+
+bike_station_info = spark.read.format("delta").option("header", "true").load("dbfs:/FileStore/tables/G13/bronze/bike-station-info")
+display(bike_station_info)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col, to_date, from_unixtime
+
+bike_status = spark.read.format("delta").option("header","true").load("dbfs:/FileStore/tables/G13/bronze/bike-status/").filter(
+    col("station_id") == "66db65aa-0aca-11e7-82f6-3863bb44ef7c")
+    #.withColumn("reported_date", to_date(from_unixtime(col('last_reported'))))
+
+display(bike_status.count())
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -66,6 +89,7 @@ plt.show()
 
 # COMMAND ----------
 
+import matplotlib.pyplot as plt
 x = day_of_week_counts.select("day_of_the_week").rdd.flatMap(lambda x: x).collect()
 y = day_of_week_counts.select("count").rdd.flatMap(lambda x: x).collect()
 
@@ -86,7 +110,7 @@ display(historic_bike_trips.groupBy("day_of_the_week").count())
 from pyspark.sql.functions import from_unixtime
 from pyspark.sql.functions import col
 
-historic_weather = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather').withColumn('human_timestamp', to_date(from_unixtime('dt', 'yyyy-MM-dd')))
+historic_weather = spark.read.format("delta").option("header", "true").load('dbfs:/FileStore/tables/G13/historic_weather_info').withColumn('human_timestamp', to_date(from_unixtime('dt', 'yyyy-MM-dd')))
 display(historic_weather)
 
 
