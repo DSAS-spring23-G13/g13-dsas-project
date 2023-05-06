@@ -51,8 +51,6 @@ station_info = bike_station_df.filter(bike_station_df.name == your_station_name)
 # Extract the station_id value from the filtered row
 your_station_id = station_info.station_id
 
-print("Our Station ID:", your_station_id)
-
 # COMMAND ----------
 
 import folium
@@ -72,7 +70,7 @@ m = folium.Map(location=[station_latitude, station_longitude], zoom_start=48)
 icon = folium.Icon(icon='bicycle', prefix='fa', color='red')
 
 # Add a marker for your station with the custom icon and popup text
-folium.Marker([station_latitude, station_longitude], popup='Lafayette St & E 8 St', icon=icon).add_to(m)
+folium.Marker([station_latitude, station_longitude], popup='Station Name - Lafayette St & E 8 St', icon=icon).add_to(m)
 
 # Display the map
 m
