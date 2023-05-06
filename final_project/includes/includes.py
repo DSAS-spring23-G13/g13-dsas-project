@@ -1,9 +1,14 @@
 # Databricks notebook source
+!pip install folium
+
+# COMMAND ----------
+
 import pandas as pd
 import requests
 import json
 import datetime
 import time
+import folium
 
 # COMMAND ----------
 
@@ -100,8 +105,8 @@ displayHTML(f"""
 <tr><td>GROUP_DATA_PATH</td><td>{GROUP_DATA_PATH}</td><td>Path to store all of your group data files (delta ect)</td></tr>
 <tr><td>GROUP_MODEL_NAME</td><td>{GROUP_MODEL_NAME}</td><td>Mlflow Model Name to be used to register your model</td></tr>
 <tr><td>GROUP_DB_NAME</td><td>{GROUP_DB_NAME}</td><td>Group Database to store any managed tables (pre-defined for you)</td></tr>
-<tr><td>G13_BRONZE_WEATHER</td><td>{BRONZE_WEATHER}</td><td>BRONZE WEATHER</td></tr>
-<tr><td>G13_BRONZE_BIKE_TRIP</td><td>{BRONZE_BIKE_TRIP}</td><td>bronze bike trip</td></tr>
-<tr><td>G13_SILVER_BIKE_WEATHER</td><td>{SILVER_BIKE_WEATHER}</td><td>silver agg weather+bike trip</td></tr>
+<tr><td>G13_BRONZE_WEATHER</td><td>{G13_BRONZE_WEATHER}</td><td>BRONZE WEATHER</td></tr>
+<tr><td>G13_BRONZE_BIKE_TRIP</td><td>{G13_BRONZE_BIKE_TRIP}</td><td>bronze bike trip</td></tr>
+<tr><td>G13_SILVER_BIKE_WEATHER</td><td>{G13_SILVER_BIKE_WEATHER}</td><td>silver agg weather+bike trip</td></tr>
 </table>
 """)

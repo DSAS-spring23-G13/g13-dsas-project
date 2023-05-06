@@ -181,6 +181,12 @@ coalesce_df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_t
 
 # COMMAND ----------
 
+# df_ = spark.read.format("delta").load(BRONZE_STATION_INFO_PATH).filter(F.col("name") == GROUP_STATION_ASSIGNMENT)
+# dfo = df_.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT)
+display(df_.take(10))
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC USE g13_db;
 # MAGIC
@@ -222,6 +228,7 @@ checkpoint_path = GROUP_DATA_PATH + "streaming/bike_staus"
 #  re-create output directory
 dbutils.fs.rm(checkpoint_path, recurse = True)
 dbutils.fs.mkdirs(checkpoint_path)
+dbutils.fs.mkdirs(output_path)
 
 # re do delta table
 spark.sql("""
@@ -264,6 +271,7 @@ checkpoint_path = GROUP_DATA_PATH + "streaming/nyc_weather"
 #  re-create output directory
 dbutils.fs.rm(checkpoint_path, recurse = True)
 dbutils.fs.mkdirs(checkpoint_path)
+dbutils.fs.mkdirs(output_path)
 
 # re do delta table
 spark.sql("""
@@ -280,6 +288,10 @@ weather_query = (
     .option("checkpointLocation", checkpoint_path)
     .start(output_path)
 )
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
