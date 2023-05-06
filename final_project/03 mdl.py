@@ -239,7 +239,10 @@ train_data
 from fbprophet import Prophet
 
 # Create a Prophet model
-model = Prophet()
+model = Prophet(seasonality_mode='multiplicative', changepoint_prior_scale=0.1)
+
+# Add US public holidays to the model
+model.add_country_holidays(country_name='US')
 
 # Fit the model to the training data
 model.fit(train_data)
@@ -251,6 +254,23 @@ future = test_data.drop('y', axis=1)
 
 # Make predictions
 forecast = model.predict(future)
+
+# COMMAND ----------
+
+from fbprophet.diagnostics import cross_validation, performance_metrics
+from fbprophet.plot import plot_cross_validation_metric
+import pandas as pd
+
+# Perform cross-validation on the fitted model
+df_cv = cross_validation(model, initial=f'{365 * 2} days', period='180 days', horizon='365 days')
+
+# Calculate performance metrics
+df_p = performance_metrics(df_cv)
+print(df_p)
+
+# Plot cross-validation metric
+fig = plot_cross_validation_metric(df_cv, metric='mape')
+plt.show()
 
 # COMMAND ----------
 
