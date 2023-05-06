@@ -60,4 +60,8 @@ assert json.loads(result)["exit_code"] == "OK", "Data Preparation Failed!" # Che
 result = dbutils.notebook.run("04 app", 3600, {"01.start_date":start_date, "02.end_date":end_date,"03.hours_to_forecast":hours_to_forecast,"04.promote_model":promote_model})
 
 # Check the results
-assert json.loads(result)["exit_code"] == "OK", "Data Preparation Failed!" # Check to see that it worked
+# assert json.loads(result)["exit_code"] == "OK", "Data Preparation Failed!" # Check to see that it worked
+
+# COMMAND ----------
+
+

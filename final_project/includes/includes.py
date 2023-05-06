@@ -83,6 +83,8 @@ G13_BRONZE_BIKE_TRIP = GROUP_DATA_PATH + "historic_bike_trips_final_1/"
 
 G13_SILVER_BIKE_WEATHER = GROUP_DATA_PATH + "silver_data_final_1/"
 
+G13_STATION_ID = "66db65aa-0aca-11e7-82f6-3863bb44ef7c"
+
 # Setup the hive meta store if it does not exist and select database as the focus of future sql commands in this notebook
 spark.sql(f"CREATE DATABASE IF NOT EXISTS {GROUP_DB_NAME}")
 spark.sql(f"USE {GROUP_DB_NAME}")
@@ -108,5 +110,6 @@ displayHTML(f"""
 <tr><td>G13_BRONZE_WEATHER</td><td>{G13_BRONZE_WEATHER}</td><td>BRONZE WEATHER</td></tr>
 <tr><td>G13_BRONZE_BIKE_TRIP</td><td>{G13_BRONZE_BIKE_TRIP}</td><td>bronze bike trip</td></tr>
 <tr><td>G13_SILVER_BIKE_WEATHER</td><td>{G13_SILVER_BIKE_WEATHER}</td><td>silver agg weather+bike trip</td></tr>
+<tr><td>G13_STATION_ID</td><td>{G13_STATION_ID}</td><td>silver agg weather+bike trip</td></tr>
 </table>
 """)

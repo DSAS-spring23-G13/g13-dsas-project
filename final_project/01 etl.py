@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # markee
+# MAGIC # installs and include file run
 
 # COMMAND ----------
 
@@ -181,12 +181,6 @@ coalesce_df.write.format("delta").mode("overwrite").saveAsTable("historic_bike_t
 
 # COMMAND ----------
 
-# df_ = spark.read.format("delta").load(BRONZE_STATION_INFO_PATH).filter(F.col("name") == GROUP_STATION_ASSIGNMENT)
-# dfo = df_.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT)
-display(df_.take(10))
-
-# COMMAND ----------
-
 # MAGIC %sql
 # MAGIC USE g13_db;
 # MAGIC
@@ -199,6 +193,8 @@ display(df_.take(10))
 
 # MAGIC %md
 # MAGIC ## stream live data
+# MAGIC
+# MAGIC - storing raw streaming data as is (type cast is not possible at this stage)
 
 # COMMAND ----------
 
@@ -226,14 +222,17 @@ output_path = GROUP_DATA_PATH + "streaming/bike_staus/output"
 checkpoint_path = GROUP_DATA_PATH + "streaming/bike_staus"
 
 #  re-create output directory
-dbutils.fs.rm(checkpoint_path, recurse = True)
-dbutils.fs.mkdirs(checkpoint_path)
-dbutils.fs.mkdirs(output_path)
+# dbutils.fs.rm(checkpoint_path, recurse = True)
+# dbutils.fs.mkdirs(checkpoint_path)
+# dbutils.fs.mkdirs(output_path)
 
-# re do delta table
-spark.sql("""
-DROP TABLE IF EXISTS g13_db.streaming_bike_status
-""")
+# # re do delta table
+# spark.sql("""
+# DROP TABLE IF EXISTS g13_db.streaming_bike_status
+# """)
+
+# Perform any necessary transformations, such as dropping duplicates
+# deduplicated_stream = streaming_status_df.dropDuplicates(["last_reported"])
 
 status_query = (
     streaming_status_df
@@ -244,7 +243,31 @@ status_query = (
     .trigger(processingTime='30 minutes')
     .option("checkpointLocation", checkpoint_path)
     .start(output_path)
+    # .awaitTermination()
 )
+
+# COMMAND ----------
+
+bike_status_df = (
+    spark
+    .read.format("delta").load(GROUP_DATA_PATH + "streaming/bike_staus/output")
+    .filter(F.col("station_id") == "daefc84c-1b16-4220-8e1f-10ea4866fdc7")
+    .sort("last_reported")
+    ) 
+# 2023-05-06T17:31:45.000+0000
+
+display(bike_status_df.sort(F.desc("last_reported")).limit(3))
+
+# COMMAND ----------
+
+total_rows = bike_status_df.count()
+
+# Count the number of distinct rows in the DataFrame based on the 'value' column
+distinct_rows = bike_status_df.select("last_reported").distinct().count()
+
+# Check if the column has duplicates
+has_duplicates = total_rows != distinct_rows
+display(has_duplicates)
 
 # COMMAND ----------
 
@@ -269,14 +292,17 @@ output_path = GROUP_DATA_PATH + "streaming/nyc_weather/output"
 checkpoint_path = GROUP_DATA_PATH + "streaming/nyc_weather"
 
 #  re-create output directory
-dbutils.fs.rm(checkpoint_path, recurse = True)
-dbutils.fs.mkdirs(checkpoint_path)
-dbutils.fs.mkdirs(output_path)
+# dbutils.fs.rm(checkpoint_path, recurse = True)
+# dbutils.fs.mkdirs(checkpoint_path)
+# dbutils.fs.mkdirs(output_path)
 
-# re do delta table
-spark.sql("""
-DROP TABLE IF EXISTS g13_db.streaming_nyc_weather
-""")
+# # re do delta table
+# spark.sql("""
+# DROP TABLE IF EXISTS g13_db.streaming_nyc_weather
+# """)
+
+# Perform any necessary transformations, such as dropping duplicates
+# deduplicated_stream = streaming_weather_df.dropDuplicates(["dt"])
 
 weather_query = (
     streaming_weather_df
@@ -287,11 +313,8 @@ weather_query = (
     .trigger(processingTime='30 minutes')
     .option("checkpointLocation", checkpoint_path)
     .start(output_path)
+    # .awaitTermination()
 )
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
@@ -442,7 +465,7 @@ trips_joined_feat = (
     .dropna()
 )
 
-display(trips_joined_feat)
+# display(trips_joined_feat)
 
 # COMMAND ----------
 
@@ -466,7 +489,3 @@ trips_joined_feat.write.format("delta").mode("overwrite").saveAsTable("silver_we
 
 # MAGIC %md
 # MAGIC ## rough work
-
-# COMMAND ----------
-
-
