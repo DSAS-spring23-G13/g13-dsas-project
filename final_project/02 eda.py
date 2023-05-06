@@ -464,13 +464,18 @@ fig.show()
 
 from pyspark.sql.functions import count, concat_ws
 
+# Filter routes that involve the "Lafayette St & E" station as either start or end
+lafayette_routes = bike_trips.filter((bike_trips.start_station_name.like("%Lafayette St & E%")) | (bike_trips.end_station_name.like("%Lafayette St & E%")))
+
+# Filter out routes where start and end stations are the same
+filtered_routes = lafayette_routes.filter(lafayette_routes.start_station_name != lafayette_routes.end_station_name)
+
 # Group by start and end stations and count the number of trips
-routes_df = bike_trips.groupBy(concat_ws(" - ", "start_station_name", "end_station_name")).agg(count("ride_id").alias("trip_count"))
+routes_df = filtered_routes.groupBy(concat_ws(" - ", "start_station_name", "end_station_name")).agg(count("ride_id").alias("trip_count"))
 
 # Show the top 10 most popular routes
-popular_routes = routes_df.orderBy(col("trip_count").desc()).limit(10)
-popular_routes.show()
-
+popular_routes = routes_df.orderBy("trip_count", ascending=False).limit(10)
+display(popular_routes)
 
 # COMMAND ----------
 
@@ -479,8 +484,14 @@ popular_routes.show()
 from pyspark.sql.functions import count, concat_ws
 import plotly.express as px
 
+# Filter routes that involve the "Lafayette St & E" station as either start or end
+lafayette_routes = bike_trips.filter((bike_trips.start_station_name.like("%Lafayette St & E%")) | (bike_trips.end_station_name.like("%Lafayette St & E%")))
+
+# Filter out routes where start and end stations are the same
+filtered_routes = lafayette_routes.filter(lafayette_routes.start_station_name != lafayette_routes.end_station_name)
+
 # Group by start and end stations and count the number of trips
-routes_df = bike_trips.groupBy(concat_ws(" - ", "start_station_name", "end_station_name")).agg(count("ride_id").alias("trip_count"))
+routes_df = filtered_routes.groupBy(concat_ws(" - ", "start_station_name", "end_station_name")).agg(count("ride_id").alias("trip_count"))
 
 # Show the top 10 most popular routes
 popular_routes = routes_df.orderBy("trip_count", ascending=False).limit(10)
@@ -489,11 +500,24 @@ popular_routes = routes_df.orderBy("trip_count", ascending=False).limit(10)
 fig = px.bar(popular_routes.toPandas(), x="trip_count", y="concat_ws( - , start_station_name, end_station_name)", orientation="h")
 
 # Add titles and labels to the chart
-fig.update_layout(title="Top 10 Most Popular Bike Routes in New York City",
+fig.update_layout(title="Top 10 Most Popular Bike Routes involving Lafayette St & E in New York City",
                   xaxis_title="Number of Trips",
                   yaxis_title="Route")
 
 fig.show()
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #####Comments:
+# MAGIC
+# MAGIC The plot shows the top 10 most popular bike routes involving the "Lafayette St & E" station in New York City. The x-axis represents the number of trips recorded for each route, while the y-axis represents the route name.
+# MAGIC
+# MAGIC From the plot, we can see that the route with the highest number of trips is "Cleveland Pl & Spring St - Lafayette St & E". This indicates that it is the most popular route among riders who either start or end their trips at the "Lafayette St & E" station.
+# MAGIC Other popular routes include "Lafayette St & Jersey St - Lafayette St & E 8 St", "Broadway & E 14 St - Lafayette St & E 8 St", and "E 10 St & Avenue A - Lafayette St & E 8 St". These routes also have a significant number of trips, suggesting a high demand for bike rides between these locations.
+# MAGIC
+# MAGIC The plot provides a visual representation of the popularity of different routes involving the "Lafayette St & E" station, allowing for quick and easy interpretation of the data. This information can be valuable for urban planning, transportation management, and bike-sharing system optimization.
 
 # COMMAND ----------
 
@@ -559,10 +583,6 @@ fig.show()
 
 # display(daily_trips)
 #display(joined_data_select)
-
-# COMMAND ----------
-
-display(joined_data_select)
 
 # COMMAND ----------
 
