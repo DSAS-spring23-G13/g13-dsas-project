@@ -208,42 +208,6 @@ display(daily_rides)
 
 # COMMAND ----------
 
-GeoSparkRegistrator.registerAll(spark)
-
-# COMMAND ----------
-
-from geospark.register import GeoSparkRegistrator
-from pyspark.sql.functions import udf
-from shapely.geometry import Point
-from pyspark.sql.types import *
-
-
-point_schema = StructType([StructField("latitude", DoubleType(), True), StructField("longitude", DoubleType(), True)])
-
-@udf(point_schema)
-def create_point(lat, lon):
-    return [lat, lon]
-
-# Convert historical_bike_trips to GeoDataFrame
-historical_bike_trips_gdf = historic_bike_trips.filter(col("start_station_name")==GROUP_STATION_ASSIGNMENT) \
-    .withColumn("geometry", create_point(col("start_lat"),col("start_lng"))) \
-    .drop("start_lat", "start_lng")
-    
-# Convert weather data to GeoDataFrame
-weather_data_gdf = historic_weather \
-    .withColumn("geometry", create_point(col("lat"),col("lon"))) \
-    .drop("lat", "lon")
-
-
-
-# Spatial join bike trips GeoDataFrame and weather GeoDataFrame
-joined_data = historical_bike_trips_gdf \
-    .spatialJoin(weather_data_gdf, "contains") \
-    .drop("geometry", "geometry_right")
-
-
-# COMMAND ----------
-
 import json
 
 # Return Success
