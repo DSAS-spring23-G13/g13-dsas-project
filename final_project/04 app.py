@@ -226,7 +226,12 @@ forecast
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 forecast['residual'] = forecast['num_bikes_available_x'] - forecast['num_bikes_available_y']
+gold_df = forecast[["ds","num_bikes_available_x", "num_bikes_available_y", "status_message"]]
 #plot the residuals
 import plotly.express as px
 fig = px.scatter(
@@ -238,29 +243,29 @@ fig.show()
 
 # COMMAND ----------
 
-display(streamDF.filter(col("last_reported") >= (datetime.now() - timedelta(hours  = 4))).select("last_reported","num_bikes_available"))
+# convert the pandas DataFrame to a Spark DataFrame
+gold_sdf = spark.createDataFrame(gold_df)
+display(gold_sdf)
+
+# Write the processed data to a Parquet file
+output_path = GROUP_DATA_PATH + "gold_data_final/"
+
+# re-create output directory
+dbutils.fs.rm(output_path, recurse = True)
+dbutils.fs.mkdirs(output_path)
+
+# define writestream
+gold_sdf.write.format("delta").mode("overwrite").save(output_path)
+
+# also recreate delta table
+spark.sql("""
+drop TABLE if EXISTS g13_db.gold_data_final
+""")
+gold_sdf.write.format("delta").mode("overwrite").saveAsTable("gold_data_final")
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col
-bike_status = spark.read.load('dbfs:/FileStore/tables/G13/streaming/bike_staus/output').filter(col("station_id") == "66db65aa-0aca-11e7-82f6-3863bb44ef7c")
-display(bike_status)
 
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-# DBTITLE 0,YOUR APPLICATIONS CODE HERE...
-start_date = str(dbutils.widgets.get('01.start_date'))
-end_date = str(dbutils.widgets.get('02.end_date'))
-hours_to_forecast = int(dbutils.widgets.get('03.hours_to_forecast'))
-promote_model = bool(True if str(dbutils.widgets.get('04.promote_model')).lower() == 'yes' else False)
-
-print(start_date,bend_date,hours_to_forecast, promote_model)
-
-print("YOUR CODE HERE...")
 
 # COMMAND ----------
 
