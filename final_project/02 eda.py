@@ -3,26 +3,12 @@
 
 # COMMAND ----------
 
-display(dbutils.fs.ls("dbfs:/FileStore/tables/G13/"))
-
-# COMMAND ----------
-
-# display(dbutils.fs.ls(f"{GROUP_DATA_PATH}historic_bike_trips"))
-HISTORIC_BIKE_TRIPS = f"dbfs:/FileStore/tables/G13/historic_bike_trips/"
-
-historic_bike_trips_df = spark.read.format('delta').load(HISTORIC_BIKE_TRIPS)
-display(historic_bike_trips_df)
-
-# COMMAND ----------
-
-historic_bike_trips_df.columns
+historic_bike_trips_df = spark.read.format('delta').load(G13_BRONZE_BIKE_TRIP)
 
 # COMMAND ----------
 
 from pyspark.sql import functions as F
 
-# Extract the year and month from the 'started_at' column
-# lafayette_df = historic_bike_trips_df.withColumn("year", F.year("started_at")).withColumn("month", F.month("started_at"))
 # Extract the year and month from the 'started_at' column
 lafayette_df = historic_bike_trips_df.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT).withColumn("year", F.year("started_at")).withColumn("month", F.month("started_at"))
 
@@ -34,12 +20,11 @@ monthly_trips = lafayette_df.groupBy("year", "month").agg(
 # Order the result by year and month
 monthly_trips = monthly_trips.orderBy("year", "month")
 
-# Display the result
-monthly_trips.show()
-
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC ## Question:
+# MAGIC <B> What are the monthly trip trends for your assigned station?</b>
 
 # COMMAND ----------
 
@@ -54,20 +39,24 @@ monthly_trips_pd['year_month'] = monthly_trips_pd['year'].astype(str) + '-' + mo
 
 # Set the figure size and title
 plt.figure(figsize=(15, 6))
-plt.title("Monthly Trip Trends for Lafayette Station")
+plt.title("Monthly Trip Trends for the Station - Lafayette St & E 8 St", fontsize=18)
 
-# Create a bar chart
-plt.bar(monthly_trips_pd['year_month'], monthly_trips_pd['trip_count'])
+# Create a bar chart with a custom color
+plt.bar(monthly_trips_pd['year_month'], monthly_trips_pd['trip_count'], color='cornflowerblue')
 
 # Set the x and y axis labels
-plt.xlabel("Year-Month")
-plt.ylabel("Trip Count")
+plt.xlabel("Year-Month", fontsize=14)
+plt.ylabel("Trip Count", fontsize=14)
 
-# Rotate the x-axis labels for better readability
-plt.xticks(rotation=45)
+# Rotate the x-axis labels for better readability and adjust font size
+plt.xticks(rotation=45, fontsize=12)
+plt.yticks(fontsize=12)
 
-# Display the chart in Databricks
-display(plt.show())
+# Add gridlines to the background
+plt.grid(axis='y', linestyle='--', alpha=0.5)
+
+# Display the chart
+plt.show()
 
 # COMMAND ----------
 
@@ -84,37 +73,48 @@ daily_trips = lafayette_df.groupBy("date").agg(
 # Order the result by date
 daily_trips = daily_trips.orderBy("date")
 
-# Display the result
-daily_trips.show()
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Question:
+# MAGIC <B> What are the daily trip trends for your given station?</b>
 
 # COMMAND ----------
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
+
+# Set the Seaborn style
+sns.set(style="whitegrid")
 
 # Convert the Spark DataFrame to a Pandas DataFrame
 daily_trips_pd = daily_trips.toPandas()
 
 # Set the figure size and title
-plt.figure(figsize=(15, 6))
-plt.title("Daily Trip Trends for Lafayette Station")
+plt.figure(figsize=(18, 7))
+plt.title("Daily Trip Trends for the Station - Lafayette St & E 8 St")
 
-# Create a line chart
-plt.plot(daily_trips_pd['date'], daily_trips_pd['trip_count'])
+# Create a line chart with custom color, line style, and markers
+plt.plot(daily_trips_pd['date'], daily_trips_pd['trip_count'], color="royalblue", linestyle="-")
 
 # Set the x and y axis labels
 plt.xlabel("Date")
 plt.ylabel("Trip Count")
 
-# Rotate the x-axis labels for better readability
-plt.xticks(rotation=45)
+# Rotate the x-axis labels
+plt.xticks(rotation=90)
 
-# Display the chart in Databricks
-display(plt.show())
+# Customize the grid and spines
+sns.despine(left=True, bottom=True)
+plt.grid(axis="both", linestyle="--", alpha=0.7)
+
+# Display the chart
+plt.show()
 
 # COMMAND ----------
 
-# This code snippet includes major federal holidays observed in Lafayette, New York, and weekends for the specified date range. Remember to adjust the date range in the generate_weekend_dates() function if needed.
+# This code snippet includes major federal holidays observed in Lafayette, New York, and weekends for the specified date range
 
 from datetime import datetime, timedelta
 
@@ -192,13 +192,15 @@ avg_trips = daily_trips.groupBy("is_holiday").agg(
     F.avg("trip_count").alias("average_trip_count")
 )
 
-avg_trips.show()
+# COMMAND ----------
+
+avg_trips_pd = avg_trips.toPandas()
 
 # COMMAND ----------
 
-import pandas as pd
-
-avg_trips_pd = avg_trips.toPandas()
+# MAGIC %md
+# MAGIC ## Question:
+# MAGIC <b> How does a holiday affect the daily (non-holiday) system use trend?
 
 # COMMAND ----------
 
@@ -223,27 +225,20 @@ plt.show()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC <B> During holidays, the average trip count tends to decrease a little!
+
+# COMMAND ----------
+
 # Read the weather data
-nyc_weather_df = spark.read.csv(
-    "dbfs:/FileStore/tables/raw/weather/NYC_Weather_Data.csv",
-    header=True,
-    inferSchema=True
-)
+nyc_weather_df = spark.read.format('delta').load(G13_BRONZE_WEATHER)
 
 # COMMAND ----------
 
-nyc_weather_df.head(5)
+from pyspark.sql.functions import to_date
 
-# COMMAND ----------
-
-# Convert the timestamp in the weather data to the appropriate granularity (daily or hourly). For this we'll use daily granularity
-from pyspark.sql.functions import to_date, from_unixtime
-
-# Convert the 'dt' column from Unix timestamp to a date type column
-nyc_weather_df = nyc_weather_df.withColumn("date", to_date(from_unixtime("dt")))
-
-# Show the content and schema of the nyc_weather_df DataFrame
-nyc_weather_df.head(2)
+# Convert the 'dt' column to a date type column
+nyc_weather_df = nyc_weather_df.withColumn("date", to_date("dt"))
 
 # COMMAND ----------
 
@@ -253,10 +248,6 @@ weather_daily_agg = nyc_weather_df.groupBy("date").agg(
     F.avg("rain_1h").alias("avg_precipitation"),
     F.avg("wind_speed").alias("avg_wind_speed")
 )
-
-# Show the content and schema of the weather_daily_agg DataFrame
-weather_daily_agg.show()
-weather_daily_agg.printSchema()
 
 # COMMAND ----------
 
@@ -287,35 +278,37 @@ import matplotlib.pyplot as plt
 fig, ax = plt.subplots(3, 1, figsize=(12, 18))
 
 # Create scatter plots for each weather variable
-ax[0].scatter(daily_trips_weather_pd['avg_temperature'], daily_trips_weather_pd['trip_count'], alpha=0.5)
+ax[0].scatter(daily_trips_weather_pd['avg_temperature'], daily_trips_weather_pd['trip_count'], alpha=0.7, c='orange', marker='o')
 ax[0].set_title("Daily Trips vs. Average Temperature")
 ax[0].set_xlabel("Average Temperature")
 ax[0].set_ylabel("Daily Trips")
+ax[0].grid()
 
-ax[1].scatter(daily_trips_weather_pd['avg_precipitation'], daily_trips_weather_pd['trip_count'], alpha=0.5)
+ax[1].scatter(daily_trips_weather_pd['avg_precipitation'], daily_trips_weather_pd['trip_count'], alpha=0.7, c='maroon', marker='o')
 ax[1].set_title("Daily Trips vs. Average Precipitation")
 ax[1].set_xlabel("Average Precipitation")
 ax[1].set_ylabel("Daily Trips")
+ax[1].grid()
 
-ax[2].scatter(daily_trips_weather_pd['avg_wind_speed'], daily_trips_weather_pd['trip_count'], alpha=0.5)
+ax[2].scatter(daily_trips_weather_pd['avg_wind_speed'], daily_trips_weather_pd['trip_count'], alpha=0.7, c='purple', marker='o')
 ax[2].set_title("Daily Trips vs. Average Wind Speed")
 ax[2].set_xlabel("Average Wind Speed")
 ax[2].set_ylabel("Daily Trips")
+ax[2].grid()
 
 # Display the plots
 plt.show()
 
-
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Based on the correlation values, we can make the following observations:
+# MAGIC <b>Based on the correlation values, we can make the following observations:
 # MAGIC
-# MAGIC There's a strong positive correlation between the trip count and average temperature (0.76). This suggests that as the temperature increases, the number of trips taken also tends to increase. People may be more likely to use the bike-sharing system when the weather is warmer.
+# MAGIC <b>There's a strong positive correlation between the trip count and average temperature (0.84). This suggests that as the temperature increases, the number of trips taken also tends to increase. People may be more likely to use the bike-sharing system when the weather is warmer.
 # MAGIC
-# MAGIC There's a weak negative correlation between the trip count and average precipitation (-0.21). This indicates that as precipitation increases, the number of trips taken may decrease slightly. Rain or snow could make it less desirable for people to use bikes.
+# MAGIC <b>There's a weak negative correlation between the trip count and average precipitation (-0.23). This indicates that as precipitation increases, the number of trips taken may decrease slightly. Rain or snow could make it less desirable for people to use bikes.
 # MAGIC
-# MAGIC There's a weak negative correlation between the trip count and average wind speed (-0.14). This suggests that as the wind speed increases, the number of trips taken may decrease a little. High winds might make biking less enjoyable or more difficult.
+# MAGIC <b>There's a weak negative correlation between the trip count and average wind speed (-0.45). This suggests that as the wind speed increases, the number of trips taken may decrease a little. High winds might make biking less enjoyable or more difficult.
 
 # COMMAND ----------
 
@@ -324,167 +317,61 @@ plt.show()
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-display(dbutils.fs.ls("dbfs:/FileStore/tables/G13/bronze"))
-
-# COMMAND ----------
-
 bike_station = f"dbfs:/FileStore/tables/G13/bronze/bike-station-info/"
 
 # COMMAND ----------
 
 bike_station_df = spark.read.format('delta').load(bike_station)
-display(bike_station_df)
-
-# COMMAND ----------
-
-bike_station_df.head(1)
 
 # COMMAND ----------
 
 bike_status = f"dbfs:/FileStore/tables/G13/bronze/bike-status/"
-
 bike_status_df = spark.read.format('delta').load(bike_status)
-display(bike_status_df)
-
-# COMMAND ----------
-
-bike_status_df.head(1)
 
 # COMMAND ----------
 
 # First, join the bike_trip_df with bike_station_df on start_station and station_id columns:
 from pyspark.sql.functions import col
 
-# bike_trip_with_station_info = daily_trips.join(bike_station_df, col("start_station") == col("station_id"), "left")
-
-# COMMAND ----------
-
-display(daily_trips_weather)
-
-# COMMAND ----------
-
-display(daily_trips)
-
-# COMMAND ----------
-
-historic_bike_trips_df.head(1)
-
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Additional EDA Start
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC What is the distribution of station capacities in the city? Are there any clusters or patterns?
-
-# COMMAND ----------
-
-import matplotlib.pyplot as plt
-
-# Extract station capacities from the dataframe
-station_capacities = bike_station_df.select('capacity').rdd.flatMap(lambda x: x).collect()
-
-# Create a histogram of station capacities
-plt.hist(station_capacities, bins=20)
-plt.xlabel('Station Capacity')
-plt.ylabel('Number of Stations')
-plt.title('Distribution of Station Capacities')
-plt.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Based on these results, we can see that there is a wide range of station capacities in the system, with the minimum capacity being 0, the maximum capacity being 123, and the average capacity being approximately 31.60. This information can be helpful in understanding the distribution of bikes across different stations and the potential demand for bikes at each station.
-
-# COMMAND ----------
-
-from pyspark.sql.functions import min, max, mean
-
-capacity_stats = bike_station_df.select(
-    min("capacity").alias("min_capacity"),
-    max("capacity").alias("max_capacity"),
-    mean("capacity").alias("avg_capacity"),
-).collect()[0]
-
-min_capacity = capacity_stats.min_capacity
-max_capacity = capacity_stats.max_capacity
-avg_capacity = capacity_stats.avg_capacity
-
-print(f"Minimum station capacity: {min_capacity}")
-print(f"Maximum station capacity: {max_capacity}")
-print(f"Average station capacity: {avg_capacity:.2f}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC What is the distribution of the number of bikes available at stations?
-
-# COMMAND ----------
-
-from pyspark.sql.functions import count
-
-num_bikes_stats = bike_status_df.groupBy("num_bikes_available").agg(count("*").alias("count")).orderBy("num_bikes_available")
-
-# To output the result as a list of dictionaries
-num_bikes_list = [row.asDict() for row in num_bikes_stats.collect()]
-
-# print(num_bikes_list)
-
-# COMMAND ----------
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Convert num_bikes_list to a DataFrame
-num_bikes_df = pd.DataFrame(num_bikes_list)
-
-sns.set(style="whitegrid")
-plt.figure(figsize=(16, 6))
-sns.barplot(x="num_bikes_available", y="count", data=num_bikes_df)
-plt.title("Number of Bikes Available at Stations")
-plt.xlabel("Number of Bikes Available")
-plt.ylabel("Number of Stations")
-plt.xticks(rotation=90)
-plt.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC What is the distribution of station status (active, inactive, etc.)?
+# MAGIC ## Question:
+# MAGIC <b>What is the distribution of station status (active, inactive)?
 
 # COMMAND ----------
 
 station_status_stats = bike_status_df.groupBy("station_status").agg(count("*").alias("count")).orderBy("station_status")
-
-# To output the result as a list of dictionaries
 station_status_list = [row.asDict() for row in station_status_stats.collect()]
 
-print(station_status_list)
+# COMMAND ----------
+
+# Convert station_status_list to a DataFrame
+station_status_df = pd.DataFrame(station_status_list)
+
+sns.set(style="whitegrid")
+plt.figure(figsize=(10, 6))
+sns.barplot(x="station_status", y="count", data=station_status_df)
+plt.title("Station Status Counts")
+plt.xlabel("Station Status")
+plt.ylabel("Number of Stations")
+plt.show()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Based on the output, we can observe that the majority of the stations are in an 'active' status (2,219,232), while a smaller number of stations are 'out_of_service' (40,854). This information is useful as it provides an understanding of the proportion of stations that are currently operational and can be used for forecasting net bike change.
+# MAGIC <b>Based on the output, we can observe that the majority of the stations are in an 'active' status, while a smaller number of stations are 'out_of_service'. This information is useful as it provides an understanding of the proportion of stations that are currently operational and can be used for forecasting net bike change.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC How do bike trips vary across different types of bikes (electric bikes, regular bikes, etc.)?
+# MAGIC ## Question:
+# MAGIC <b>How do bike trips vary across different types of bikes (electric bikes, regular bikes, etc.)?
 
 # COMMAND ----------
 
 bike_type_stats = historic_bike_trips_df.groupBy("rideable_type").agg(count("*").alias("count")).orderBy("rideable_type")
-
-# To output the result as a list of dictionaries
 bike_type_list = [row.asDict() for row in bike_type_stats.collect()]
-
-print(bike_type_list)
 
 # COMMAND ----------
 
@@ -505,20 +392,22 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The output shows the distribution of bike trips across different types of bikes:
 # MAGIC
-# MAGIC Classic Bike: 29,585,988 trips  
-# MAGIC Docked Bike: 306,185 trips  
-# MAGIC Electric Bike: 10,506,882 trips   
+# MAGIC <b>The output shows the distribution of bike trips across different types of bikes:
 # MAGIC
-# MAGIC Classic bikes are the most frequently used, with a significantly higher number of trips compared to the other types. Electric bikes are the second most popular, while docked bikes have the least number of trips.
+# MAGIC <b>Classic Bike: 29,585,988 trips  
+# MAGIC <b>Docked Bike: 306,185 trips  
+# MAGIC <b>Electric Bike: 10,506,882 trips   
 # MAGIC
-# MAGIC Understanding the distribution of bike trips across different types of bikes can help us determine the influence of bike types on net bike change at the station level
+# MAGIC <b>Classic bikes are the most frequently used, with a significantly higher number of trips compared to the other types. Electric bikes are the second most popular, while docked bikes have the least number of trips.
+# MAGIC
+# MAGIC <b>Understanding the distribution of bike trips across different types of bikes can help us determine the influence of bike types on net bike change at the station level.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC How do bike trips vary across different user types (members and casual users)?
+# MAGIC ## Question:
+# MAGIC <b>How do bike trips vary across different user types (members and casual users)?
 
 # COMMAND ----------
 
@@ -526,8 +415,6 @@ user_type_stats = historic_bike_trips_df.groupBy("member_casual").agg(count("*")
 
 # To output the result as a list of dictionaries
 user_type_list = [row.asDict() for row in user_type_stats.collect()]
-
-print(user_type_list)
 
 # COMMAND ----------
 
@@ -548,18 +435,19 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The output shows the distribution of bike trips across different user types:
+# MAGIC <b>The output shows the distribution of bike trips across different user types:
 # MAGIC  
-# MAGIC Casual users: 8,262,716 trips  
-# MAGIC Members: 32,136,339 trips  
-# MAGIC Members account for a significantly larger number of trips compared to casual users.  
+# MAGIC <b>Casual users: 8,262,716 trips  
+# MAGIC <b>Members: 32,136,339 trips  
+# MAGIC <b>Members account for a significantly larger number of trips compared to casual users.  
 # MAGIC
-# MAGIC Understanding the distribution of bike trips across different user types can help us determine the influence of user types on net bike change at the station level.
+# MAGIC <b>Understanding the distribution of bike trips across different user types can help us determine the influence of user types on net bike change at the station level.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC What are the peak hours for bike usage, and how does this differ between weekdays and weekends?
+# MAGIC ## Question:
+# MAGIC <b>What are the peak hours for bike usage, and how does this differ between weekdays and weekends?
 
 # COMMAND ----------
 
@@ -574,7 +462,6 @@ hour_day_stats = historic_bike_trips_df.groupBy("hour", "day_of_week").agg(count
 
 # Collect the results as a list of dictionaries
 hour_day_list = [row.asDict() for row in hour_day_stats.collect()]
-
 
 # COMMAND ----------
 
@@ -615,13 +502,29 @@ plt.show()
 
 # COMMAND ----------
 
-# This code will print the most frequent start and end stations for trips that are to or from the given station.
+# MAGIC %md
+# MAGIC <b>Bike usage is generally higher on weekdays than weekends for most hours of the day.  
+# MAGIC
+# MAGIC <b>On weekdays, there are two distinct peak hours: one in the morning (around 8 am) and another in the evening (around 5 pm to 6 pm). This is likely due to people commuting to and from work.  
+# MAGIC
+# MAGIC <b>On weekends, the usage pattern is different. The peak hours are around midday, from 11 am to 3 pm. This may be because people are more likely to use bikes for leisure or running errands on weekends.  
+# MAGIC
+# MAGIC <b>Bike usage decreases significantly during late-night hours (from around 11 pm to 5 am) on both weekdays and weekends.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Question
+# MAGIC <b>What are the most frequent start and end stations for trips that are to or from the given station?
+
+# COMMAND ----------
+
 from pyspark.sql.functions import desc
 
-GROUP_STATION_ASSIGNMENT = "Franklin Ave & St Marks Ave"  # Replace with your assigned station
+GROUP_STATION_ASSIGNMENT = 'Lafayette St & E 8 St'
 
-# Filter trips starting at the given station
-start_station_df = historic_bike_trips_df.filter(F.col("start_station_name") == GROUP_STATION_ASSIGNMENT)
+# Filter trips starting at the given station and ending at a different station
+start_station_df = historic_bike_trips_df.filter((F.col("start_station_name") == GROUP_STATION_ASSIGNMENT) & (F.col("start_station_name") != F.col("end_station_name")))
 
 # Group by end_station_name and count the number of trips
 start_station_grouped = start_station_df.groupBy("end_station_name").agg(F.count("ride_id").alias("trip_count"))
@@ -629,8 +532,8 @@ start_station_grouped = start_station_df.groupBy("end_station_name").agg(F.count
 # Sort in descending order based on trip_count and take the first row
 most_frequent_end_station = start_station_grouped.sort(desc("trip_count")).first()
 
-# Filter trips ending at the given station
-end_station_df = historic_bike_trips_df.filter(F.col("end_station_name") == GROUP_STATION_ASSIGNMENT)
+# Filter trips ending at the given station and starting at a different station
+end_station_df = historic_bike_trips_df.filter((F.col("end_station_name") == GROUP_STATION_ASSIGNMENT) & (F.col("start_station_name") != F.col("end_station_name")))
 
 # Group by start_station_name and count the number of trips
 end_station_grouped = end_station_df.groupBy("start_station_name").agg(F.count("ride_id").alias("trip_count"))
@@ -640,6 +543,13 @@ most_frequent_start_station = end_station_grouped.sort(desc("trip_count")).first
 
 print(f"Most frequent start station: {most_frequent_start_station['start_station_name']} with {most_frequent_start_station['trip_count']} trips")
 print(f"Most frequent end station: {most_frequent_end_station['end_station_name']} with {most_frequent_end_station['trip_count']} trips")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC <b>Most frequent start station: Cleveland Pl & Spring St with 2099 trips  
+# MAGIC <b>Most frequent end station: 4 Ave & E 12 St with 2061 trips
 
 # COMMAND ----------
 
@@ -686,148 +596,19 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Knowing the most frequent start and end stations for trips involving your assigned station can help in making informed decisions related to bike-sharing operations, marketing strategies, and infrastructure planning. Here are some possible actions you can take based on this information:
+# MAGIC <b>Knowing the most frequent start and end stations for trips involving our assigned station can help in making informed decisions related to bike-sharing operations, marketing strategies, and infrastructure planning. Here are some possible actions we can take based on this information:
 # MAGIC
-# MAGIC Optimize bike availability: Ensure that there are enough bikes available at the most frequent start station (Lefferts Pl & Franklin Ave) and enough empty docks at the most frequent end station (Eastern Pkwy & Franklin Ave) during peak hours. This can be done by redistributing bikes or adjusting the dock capacities.
+# MAGIC <b>Optimize bike availability:</b>   
+# MAGIC Ensure that there are enough bikes available at the most frequent start station (Cleveland Pl & Spring St) and enough empty docks at the most frequent end station (4 Ave & E12 St) during peak hours. This can be done by redistributing bikes or adjusting the dock capacities.
 # MAGIC
-# MAGIC Infrastructure improvements: If the demand for bikes at these popular stations is consistently high, consider expanding the existing stations or adding new stations nearby to cater to the demand and reduce congestion.
+# MAGIC <b>Infrastructure improvements:</b>  
+# MAGIC If the demand for bikes at these popular stations is consistently high, consider expanding the existing stations or adding new stations nearby to cater to the demand and reduce congestion.
 # MAGIC
-# MAGIC Targeted marketing: Promote membership plans or special offers to users who frequently start or end their trips at these popular stations. This can help in attracting new customers and retaining existing ones.
+# MAGIC <b>Targeted marketing:</b>   
+# MAGIC Promote membership plans or special offers to users who frequently start or end their trips at these popular stations. This can help in attracting new customers and retaining existing ones.
 # MAGIC
-# MAGIC Collaborate with local businesses: Partner with businesses near the most frequent start and end stations to offer promotions, discounts, or events that encourage more people to use the bike-sharing service.
+# MAGIC <b>Collaborate with local businesses:</b>   
+# MAGIC Partner with businesses near the most frequent start and end stations to offer promotions, discounts, or events that encourage more people to use the bike-sharing service.
 # MAGIC
-# MAGIC Analyze trip patterns: Further analyze the trip data to identify trends or patterns related to these popular stations, such as the time of day when they are most frequently used or if there are any seasonal variations. This information can be used to fine-tune operations, marketing strategies, and customer service.
-
-# COMMAND ----------
-
-from pyspark.sql.functions import hour, month
-
-# Filter the data to include only trips starting or ending at the most frequent stations
-frequent_stations_df = historic_bike_trips_df.filter(
-    (historic_bike_trips_df.start_station_name == "Lefferts Pl & Franklin Ave") |
-    (historic_bike_trips_df.end_station_name == "Eastern Pkwy & Franklin Ave")
-)
-
-# Extract the hour and month from the 'started_at' column
-frequent_stations_df = frequent_stations_df.withColumn("hour", hour("started_at")).withColumn("month", month("started_at"))
-
-# Group by hour and month, and count the trips
-hourly_monthly_trips = frequent_stations_df.groupBy("hour", "month").agg(
-    F.count("ride_id").alias("trip_count")
-)
-
-# Order the result by hour and month
-hourly_monthly_trips = hourly_monthly_trips.orderBy("hour", "month")
-
-# Display the result
-hourly_monthly_trips.show()
-
-# COMMAND ----------
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-import pandas as pd
-
-# Convert the hourly_monthly_trips DataFrame to a Pandas DataFrame
-hourly_monthly_trips_pd = hourly_monthly_trips.toPandas()
-
-# Pivot the data to create a matrix with hours as rows, months as columns, and trip_count as values
-heatmap_data = hourly_monthly_trips_pd.pivot("hour", "month", "trip_count")
-
-# Create the heatmap
-plt.figure(figsize=(12, 6))
-sns.heatmap(heatmap_data, annot=True, fmt=".0f", cmap="YlGnBu", cbar_kws={'label': 'Trip Count'})
-plt.title("Hourly-Monthly Trips for Most Frequent Start and End Stations")
-plt.xlabel("Month")
-plt.ylabel("Hour")
-plt.show()
-
-# COMMAND ----------
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-import pandas as pd
-
-# Convert the hourly_monthly_trips DataFrame to a Pandas DataFrame
-hourly_monthly_trips_pd = hourly_monthly_trips.toPandas()
-
-# Create a FacetGrid with a separate line plot for each month
-g = sns.FacetGrid(hourly_monthly_trips_pd, col="month", col_wrap=4, height=3, aspect=1.5)
-g.map(sns.lineplot, "hour", "trip_count", marker="o")
-
-# Customize the plot titles and labels
-g.set_axis_labels("Hour", "Trip Count")
-g.set_titles("Month {col_name}")
-g.fig.subplots_adjust(top=0.9)
-g.fig.suptitle("Hourly Trips for Most Frequent Start and End Stations by Month", fontsize=16)
-
-# Display the plots
-plt.show()
-
-# COMMAND ----------
-
-from pyspark.sql import functions as F
-
-# Calculate the most frequent start and end stations
-start_stations_sorted = historic_bike_trips_df.groupBy("start_station_name").count().sort(F.desc("count"))
-end_stations_sorted = historic_bike_trips_df.groupBy("end_station_name").count().sort(F.desc("count"))
-
-# Extract the most frequent start and end station names
-most_frequent_start_station = start_stations_sorted.first()["start_station_name"]
-most_frequent_end_station = end_stations_sorted.first()["end_station_name"]
-
-# Filter trips for the most frequent start and end stations
-start_station_trips = historic_bike_trips_df.filter(F.col("start_station_name") == most_frequent_start_station)
-end_station_trips = historic_bike_trips_df.filter(F.col("end_station_name") == most_frequent_end_station)
-
-# Group by hour and count the trips for start station
-start_station_hourly_trips = start_station_trips.groupBy(F.hour("started_at").alias("hour")).agg(F.count("ride_id").alias("trip_count")).orderBy("hour")
-
-# Group by hour and count the trips for end station
-end_station_hourly_trips = end_station_trips.groupBy(F.hour("ended_at").alias("hour")).agg(F.count("ride_id").alias("trip_count")).orderBy("hour")
-
-# Convert to Pandas DataFrames
-start_station_hourly_trips_pd = start_station_hourly_trips.toPandas()
-end_station_hourly_trips_pd = end_station_hourly_trips.toPandas()
-
-# Plot the line graphs for both stations
-import matplotlib.pyplot as plt
-
-plt.figure(figsize=(12, 6))
-plt.plot(start_station_hourly_trips_pd["hour"], start_station_hourly_trips_pd["trip_count"], label=f"{most_frequent_start_station} (Start)")
-plt.plot(end_station_hourly_trips_pd["hour"], end_station_hourly_trips_pd["trip_count"], label=f"{most_frequent_end_station} (End)")
-plt.xlabel("Hour of the Day")
-plt.ylabel("Number of Trips")
-plt.title("Hourly Trips for Most Frequent Start and End Stations")
-plt.legend()
-plt.xticks(range(0, 24))
-plt.grid()
-plt.show()
-
-# COMMAND ----------
-
-# Join the start_station_hourly_trips and end_station_hourly_trips DataFrames
-hourly_trips_both_stations = start_station_hourly_trips.alias("start").join(
-    end_station_hourly_trips.alias("end"), F.col("start.hour") == F.col("end.hour"), "inner"
-).select(
-    F.col("start.hour").alias("hour"),
-    F.col("start.trip_count").alias("start_station_trip_count"),
-    F.col("end.trip_count").alias("end_station_trip_count")
-).orderBy("hour")
-
-# Convert the hourly_trips_both_stations DataFrame to a Pandas DataFrame
-hourly_trips_both_stations_pd = hourly_trips_both_stations.toPandas()
-
-# Create a FacetGrid with a separate line plot for each station
-g = sns.FacetGrid(hourly_trips_both_stations_pd, height=4, aspect=2)
-g.map(sns.lineplot, "hour", "start_station_trip_count", marker="o", label=f"{most_frequent_start_station} (Start)")
-g.map(sns.lineplot, "hour", "end_station_trip_count", marker="o", label=f"{most_frequent_end_station} (End)")
-
-# Customize the plot titles and labels
-g.set_axis_labels("Hour", "Trip Count")
-g.add_legend(title="Station")
-g.fig.subplots_adjust(top=0.9)
-g.fig.suptitle("Hourly Trips for Most Frequent Start and End Stations", fontsize=16)
-
-# Display the plots
-plt.show()
+# MAGIC <b>Analyze trip patterns:</b> 
+# MAGIC Further analyze the trip data to identify trends or patterns related to these popular stations, such as the time of day when they are most frequently used or if there are any seasonal variations. This information can be used to fine-tune operations, marketing strategies, and customer service.
