@@ -332,13 +332,12 @@ weather_query.status
 
 # COMMAND ----------
 
-from_path = GROUP_DATA_PATH + "historic_bike_trips_final_1/"
+from_path = G13_BRONZE_BIKE_TRIP
 
 historic_bike_trips_from  = (
     spark
     .read
     .format("delta")
-    .option("header", "true")
     .load(from_path)
     .filter(col("start_station_name") == GROUP_STATION_ASSIGNMENT)
     .withColumn("start_date_column", to_date(col('started_at')))
@@ -348,7 +347,6 @@ historic_bike_trips_from  = (
 
 historic_bike_trips_to = (
     spark.read.format("delta")
-    .option("header", "true")
     .load(from_path)
     .filter(col("end_station_name") == GROUP_STATION_ASSIGNMENT)
     .withColumn("end_date_column", to_date(col('ended_at')))
@@ -357,11 +355,10 @@ historic_bike_trips_to = (
     .withColumn("end_hour", date_format(col('ended_at'), "HH:00"))
 )
 
-bronze_hist_weather = GROUP_DATA_PATH + "historic_weather_data_final_1/"
+bronze_hist_weather = G13_BRONZE_WEATHER
 
 historic_weather = (
     spark.read.format("delta")
-    .option("header", "true")
     .load(bronze_hist_weather)
     # .withColumn('human_timestamp', from_unixtime('dt'))
     .withColumn("weather_hour", date_format(col('dt'), "HH:00"))
@@ -489,3 +486,12 @@ trips_joined_feat.write.format("delta").mode("overwrite").saveAsTable("silver_we
 
 # MAGIC %md
 # MAGIC ## rough work
+
+# COMMAND ----------
+
+df = spark.read.format("delta").load(G13_SILVER_BIKE_WEATHER)
+display(df.limit(9))
+
+# COMMAND ----------
+
+
