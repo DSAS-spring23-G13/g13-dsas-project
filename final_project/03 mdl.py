@@ -36,6 +36,10 @@ model_df_pandas.drop(["num_rides_in","num_rides_out"],axis = 1, inplace=True)
 
 # COMMAND ----------
 
+model_df_pandas.info()
+
+# COMMAND ----------
+
 !pip install fbprophet
 
 # COMMAND ----------
@@ -175,7 +179,7 @@ print(best_params)
 
 loaded_model = mlflow.prophet.load_model(best_params['model'])
 
-future = loaded_model.make_future_dataframe(periods=, freq='H')
+future = loaded_model.make_future_dataframe(periods=24, freq='H')
 future = pd.merge( left = future, right = model_df_pandas.drop(["y"],axis = 1), on = "ds", how = "left")
 future.fillna(method="ffill",inplace=True)
 future.head()
