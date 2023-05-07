@@ -54,6 +54,18 @@ display(station_info)
 
 # COMMAND ----------
 
+displayHTML(f"""
+<p>05.current_timestamp: {currentDateAndTime}</p>
+<p>06.production_version: {latest_production_version}</p>
+<p>07.staging_version: {latest_staging_version}</p>
+<p>08.station_name: {GROUP_STATION_ASSIGNMENT}</p>
+<p>09.current_bikes_available: {current_bikes_available}</p>
+<p>10.current_temperature: {current_temp}</p>
+<p>11.current_precipitation: {current_precipitation}</p>
+""")
+
+# COMMAND ----------
+
 !pip install folium
 
 # COMMAND ----------
