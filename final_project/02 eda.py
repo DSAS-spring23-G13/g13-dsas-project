@@ -341,6 +341,8 @@ from pyspark.sql.functions import col
 
 # COMMAND ----------
 
+from pyspark.sql.functions import count
+
 station_status_stats = bike_status_df.groupBy("station_status").agg(count("*").alias("count")).orderBy("station_status")
 station_status_list = [row.asDict() for row in station_status_stats.collect()]
 
@@ -612,3 +614,7 @@ plt.show()
 # MAGIC
 # MAGIC <b>Analyze trip patterns:</b> 
 # MAGIC Further analyze the trip data to identify trends or patterns related to these popular stations, such as the time of day when they are most frequently used or if there are any seasonal variations. This information can be used to fine-tune operations, marketing strategies, and customer service.
+
+# COMMAND ----------
+
+
